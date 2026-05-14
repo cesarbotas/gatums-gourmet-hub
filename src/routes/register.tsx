@@ -1,0 +1,89 @@
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Navigation } from "@/components/Navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/lib/auth-context";
+
+export const Route = createFileRoute("/register")({
+  head: () => ({ meta: [{ title: "Criar conta — Gatums Gourmet" }] }),
+  component: RegisterPage,
+});
+
+function RegisterPage() {
+  const { register } = useAuth();
+  const router = useRouter();
+  const [form, setForm] = useState({ nome: "", email: "", telefone: "", password: "" });
+  const [loading, setLoading] = useState(false);
+
+  const update = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (form.password.length < 6) {
+      toast.error("A senha precisa ter pelo menos 6 caracteres");
+      return;
+    }
+    setLoading(true);
+    try {
+      await register(form);
+      toast.success("Conta criada com sucesso!");
+      router.navigate({ to: "/minha-conta" });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao cadastrar");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background">
+      <Navigation />
+      <main className="flex flex-1 items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 shadow-warm">
+          <h1 className="font-display text-3xl text-foreground">Criar conta</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Leva menos de um minuto.
+          </p>
+          <form onSubmit={submit} className="mt-6 space-y-4">
+            <div>
+              <Label htmlFor="nome">Nome completo</Label>
+              <Input id="nome" required value={form.nome} onChange={update("nome")} />
+            </div>
+            <div>
+              <Label htmlFor="email">E-mail</Label>
+              <Input id="email" type="email" required value={form.email} onChange={update("email")} />
+            </div>
+            <div>
+              <Label htmlFor="telefone">Telefone</Label>
+              <Input id="telefone" value={form.telefone} onChange={update("telefone")} />
+            </div>
+            <div>
+              <Label htmlFor="password">Senha</Label>
+              <Input
+                id="password"
+                type="password"
+                required
+                minLength={6}
+                value={form.password}
+                onChange={update("password")}
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Criando..." : "Criar conta"}
+            </Button>
+          </form>
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            Já tem conta?{" "}
+            <Link to="/login" className="font-medium text-accent hover:underline">
+              Entrar
+            </Link>
+          </p>
+        </div>
+      </main>
+    </div>
+  );
+}
