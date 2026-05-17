@@ -110,7 +110,7 @@ function load(): Produto[] {
     return SEED;
   }
   // back-compat: garante tipo
-  return stored.map((p) => ({ tipo: p.tipo ?? "simples", ...p }));
+  return stored.map((p) => ({ ...p, tipo: p.tipo ?? "simples" }));
 }
 
 function save(list: Produto[]) {
