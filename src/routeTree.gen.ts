@@ -16,6 +16,7 @@ import { Route as CatalogoRouteImport } from './routes/catalogo'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedMinhaContaRouteImport } from './routes/_authenticated/minha-conta'
+import { Route as AuthenticatedCarrinhoRouteImport } from './routes/_authenticated/carrinho'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminRelatoriosRouteImport } from './routes/_authenticated/admin/relatorios'
@@ -56,6 +57,11 @@ const AuthenticatedMinhaContaRoute = AuthenticatedMinhaContaRouteImport.update({
   path: '/minha-conta',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedCarrinhoRoute = AuthenticatedCarrinhoRouteImport.update({
+  id: '/carrinho',
+  path: '/carrinho',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/sobre': typeof SobreRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/carrinho': typeof AuthenticatedCarrinhoRoute
   '/minha-conta': typeof AuthenticatedMinhaContaRoute
   '/admin/clientes': typeof AuthenticatedAdminClientesRoute
   '/admin/produtos': typeof AuthenticatedAdminProdutosRoute
@@ -104,6 +111,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/sobre': typeof SobreRoute
+  '/carrinho': typeof AuthenticatedCarrinhoRoute
   '/minha-conta': typeof AuthenticatedMinhaContaRoute
   '/admin/clientes': typeof AuthenticatedAdminClientesRoute
   '/admin/produtos': typeof AuthenticatedAdminProdutosRoute
@@ -119,6 +127,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/sobre': typeof SobreRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/carrinho': typeof AuthenticatedCarrinhoRoute
   '/_authenticated/minha-conta': typeof AuthenticatedMinhaContaRoute
   '/_authenticated/admin/clientes': typeof AuthenticatedAdminClientesRoute
   '/_authenticated/admin/produtos': typeof AuthenticatedAdminProdutosRoute
@@ -134,6 +143,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/sobre'
     | '/admin'
+    | '/carrinho'
     | '/minha-conta'
     | '/admin/clientes'
     | '/admin/produtos'
@@ -146,6 +156,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/sobre'
+    | '/carrinho'
     | '/minha-conta'
     | '/admin/clientes'
     | '/admin/produtos'
@@ -160,6 +171,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/sobre'
     | '/_authenticated/admin'
+    | '/_authenticated/carrinho'
     | '/_authenticated/minha-conta'
     | '/_authenticated/admin/clientes'
     | '/_authenticated/admin/produtos'
@@ -227,6 +239,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMinhaContaRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/carrinho': {
+      id: '/_authenticated/carrinho'
+      path: '/carrinho'
+      fullPath: '/carrinho'
+      preLoaderRoute: typeof AuthenticatedCarrinhoRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin': {
       id: '/_authenticated/admin'
       path: '/admin'
@@ -284,11 +303,13 @@ const AuthenticatedAdminRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedCarrinhoRoute: typeof AuthenticatedCarrinhoRoute
   AuthenticatedMinhaContaRoute: typeof AuthenticatedMinhaContaRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedCarrinhoRoute: AuthenticatedCarrinhoRoute,
   AuthenticatedMinhaContaRoute: AuthenticatedMinhaContaRoute,
 }
 
