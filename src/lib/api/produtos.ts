@@ -3,6 +3,24 @@ import type { PaginatedResponse } from "./config";
 
 const KEY = "gg.produtos";
 
+export const CATEGORIAS = [
+  "Geleias",
+  "Doces",
+  "Patês",
+  "Padaria",
+  "Mercearia",
+  "Bebidas",
+  "Combos",
+] as const;
+export type Categoria = (typeof CATEGORIAS)[number];
+
+export type TipoProduto = "simples" | "combo";
+
+export interface ItemCombo {
+  produtoId: string;
+  quantidade: number;
+}
+
 export interface Produto {
   id: string;
   nome: string;
@@ -11,6 +29,8 @@ export interface Produto {
   preco: number;
   foto: string;
   disponivel: boolean;
+  tipo: TipoProduto;
+  itens?: ItemCombo[]; // só para combos
   criadoEm: string;
 }
 
@@ -23,6 +43,7 @@ const SEED: Produto[] = [
     preco: 32,
     foto: "https://images.unsplash.com/photo-1597528380103-fe1d6c5dbeec?w=800&auto=format&fit=crop",
     disponivel: true,
+    tipo: "simples",
     criadoEm: new Date().toISOString(),
   },
   {
@@ -33,6 +54,7 @@ const SEED: Produto[] = [
     preco: 48,
     foto: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=800&auto=format&fit=crop",
     disponivel: true,
+    tipo: "simples",
     criadoEm: new Date().toISOString(),
   },
   {
@@ -43,6 +65,7 @@ const SEED: Produto[] = [
     preco: 39,
     foto: "https://images.unsplash.com/photo-1559054663-e8d23213f55c?w=800&auto=format&fit=crop",
     disponivel: true,
+    tipo: "simples",
     criadoEm: new Date().toISOString(),
   },
   {
@@ -53,6 +76,7 @@ const SEED: Produto[] = [
     preco: 28,
     foto: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&auto=format&fit=crop",
     disponivel: true,
+    tipo: "simples",
     criadoEm: new Date().toISOString(),
   },
   {
@@ -63,6 +87,7 @@ const SEED: Produto[] = [
     preco: 54,
     foto: "https://images.unsplash.com/photo-1481391319762-47dff72954d9?w=800&auto=format&fit=crop",
     disponivel: false,
+    tipo: "simples",
     criadoEm: new Date().toISOString(),
   },
   {
@@ -73,6 +98,7 @@ const SEED: Produto[] = [
     preco: 62,
     foto: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=800&auto=format&fit=crop",
     disponivel: true,
+    tipo: "simples",
     criadoEm: new Date().toISOString(),
   },
 ];
@@ -83,7 +109,8 @@ function load(): Produto[] {
     writeStore(KEY, SEED);
     return SEED;
   }
-  return stored;
+  // back-compat: garante tipo
+  return stored.map((p) => ({ ...p, tipo: p.tipo ?? "simples" }));
 }
 
 function save(list: Produto[]) {
@@ -91,7 +118,7 @@ function save(list: Produto[]) {
 }
 
 export const produtosService = {
-  async list(params: { page?: number; pageSize?: number; search?: string } = {}): Promise<
+  async list(params: { page?: number; pageSize?: number; search?: string; categoria?: string; tipo?: TipoProduto | "todos"; disponivel?: boolean } = {}): Promise<
     PaginatedResponse<Produto>
   > {
     const page = params.page ?? 1;
@@ -102,8 +129,18 @@ export const produtosService = {
       items = items.filter(
         (p) =>
           p.nome.toLowerCase().includes(search) ||
-          p.categoria.toLowerCase().includes(search),
+          p.categoria.toLowerCase().includes(search) ||
+          p.descricao.toLowerCase().includes(search),
       );
+    }
+    if (params.categoria && params.categoria !== "Todas") {
+      items = items.filter((p) => p.categoria === params.categoria);
+    }
+    if (params.tipo && params.tipo !== "todos") {
+      items = items.filter((p) => p.tipo === params.tipo);
+    }
+    if (typeof params.disponivel === "boolean") {
+      items = items.filter((p) => p.disponivel === params.disponivel);
     }
     const total = items.length;
     const start = (page - 1) * pageSize;
