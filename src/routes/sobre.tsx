@@ -109,7 +109,7 @@ function SobrePage() {
               </p>
             </div>
             <a
-              href={`https://instagram.com/${INSTAGRAM}`}
+              href={`https://wwww.instagram.com/${INSTAGRAM}`}
               target="_blank"
               rel="noopener noreferrer"
               className="block p-5 text-sm font-medium text-accent hover:underline"
