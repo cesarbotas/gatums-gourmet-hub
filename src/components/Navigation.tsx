@@ -1,7 +1,8 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { Menu, X, ShoppingBag, Shield, User as UserIcon, LogOut } from "lucide-react";
+import { Menu, X, ShoppingBag, Shield, User as UserIcon, LogOut, ShoppingCart } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useCart } from "@/lib/cart-context";
 import { Button } from "@/components/ui/button";
 
 const publicLinks = [
@@ -12,6 +13,7 @@ const publicLinks = [
 
 export function Navigation() {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
+  const { count } = useCart();
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -20,6 +22,8 @@ export function Navigation() {
     setOpen(false);
     router.navigate({ to: "/" });
   };
+
+  const showCart = isAuthenticated && !isAdmin;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
@@ -66,6 +70,18 @@ export function Navigation() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
+          {showCart && (
+            <Button variant="ghost" size="sm" asChild className="relative">
+              <Link to="/carrinho" aria-label="Carrinho">
+                <ShoppingCart className="h-4 w-4" />
+                {count > 0 && (
+                  <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-accent-foreground">
+                    {count}
+                  </span>
+                )}
+              </Link>
+            </Button>
+          )}
           {isAuthenticated ? (
             <>
               <span className="hidden text-sm text-muted-foreground lg:inline">
@@ -89,14 +105,28 @@ export function Navigation() {
           )}
         </div>
 
-        <button
-          type="button"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground md:hidden"
-          onClick={() => setOpen((v) => !v)}
-          aria-label="Abrir menu"
-        >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        <div className="flex items-center gap-1 md:hidden">
+          {showCart && (
+            <Button variant="ghost" size="icon" asChild className="relative">
+              <Link to="/carrinho" aria-label="Carrinho">
+                <ShoppingCart className="h-5 w-5" />
+                {count > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-accent-foreground">
+                    {count}
+                  </span>
+                )}
+              </Link>
+            </Button>
+          )}
+          <button
+            type="button"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground"
+            onClick={() => setOpen((v) => !v)}
+            aria-label="Abrir menu"
+          >
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       {open && (
@@ -138,14 +168,10 @@ export function Navigation() {
               ) : (
                 <>
                   <Button variant="outline" size="sm" className="w-full" asChild>
-                    <Link to="/login" onClick={() => setOpen(false)}>
-                      Entrar
-                    </Link>
+                    <Link to="/login" onClick={() => setOpen(false)}>Entrar</Link>
                   </Button>
                   <Button size="sm" className="w-full" asChild>
-                    <Link to="/register" onClick={() => setOpen(false)}>
-                      Criar conta
-                    </Link>
+                    <Link to="/register" onClick={() => setOpen(false)}>Criar conta</Link>
                   </Button>
                 </>
               )}
