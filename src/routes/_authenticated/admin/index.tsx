@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Package, Users, ShoppingBag, DollarSign } from "lucide-react";
-import { produtosService, clientesService, vendasService } from "@/lib/api";
+import { produtosService, clientesService, vendasService, pedidosService } from "@/lib/api";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   component: AdminOverview,
@@ -20,7 +20,7 @@ function AdminOverview() {
       setStats({
         produtos: p.total,
         clientes: c.total,
-        pedidos: r.totalPedidos,
+        pedidos: pedidosService.listAll().length,
         faturamento: r.totalFaturamento,
       });
     })();
@@ -29,7 +29,7 @@ function AdminOverview() {
   const cards = [
     { label: "Produtos", value: stats.produtos, icon: Package },
     { label: "Clientes", value: stats.clientes, icon: Users },
-    { label: "Pedidos (30d)", value: stats.pedidos, icon: ShoppingBag },
+    { label: "Pedidos", value: stats.pedidos, icon: ShoppingBag },
     {
       label: "Faturamento (30d)",
       value: `R$ ${stats.faturamento.toFixed(2)}`,
@@ -63,7 +63,7 @@ function AdminOverview() {
       <section className="mt-10 rounded-2xl border border-border bg-card p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-foreground">Bem-vindo ao painel</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Use o menu lateral para gerenciar produtos, clientes e acompanhar relatórios de
+          Use o menu lateral para gerenciar produtos, pedidos, clientes e acompanhar relatórios de
           vendas. Os dados atuais são uma demonstração local — quando sua API estiver pronta,
           basta ajustar <code className="rounded bg-muted px-1">src/lib/api/config.ts</code>.
         </p>

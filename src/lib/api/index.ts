@@ -3,4 +3,6 @@ export * from "./auth";
 export * from "./produtos";
 export * from "./clientes";
 export * from "./vendas";
+export * from "./pedidos";
+export * from "./pagamentos";
 export * from "./carrinho";
