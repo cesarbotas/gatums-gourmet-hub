@@ -35,7 +35,7 @@ function CarrinhoPage() {
   const finalizar = async () => {
     try {
       const pedido = await checkout();
-      toast.success(`Pedido #${pedido.id.slice(0, 6)} recebido!`);
+      toast.success(`Pedido #${pedido.id.slice(0, 6).toUpperCase()} criado! Aguardando aprovação.`);
       navigate({ to: "/minha-conta" });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao finalizar");

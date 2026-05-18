@@ -14,6 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { produtosService, CATEGORIAS, type Produto } from "@/lib/api";
+import { resolveComboItens } from "@/lib/combo-display";
+import { ComboItensList } from "@/components/ComboItensList";
 import { useAuth } from "@/lib/auth-context";
 import { useCart } from "@/lib/cart-context";
 
@@ -226,10 +228,12 @@ function CatalogoPage() {
                     <p className="text-xs uppercase tracking-wide text-accent">{p.categoria}</p>
                     <h3 className="mt-1 text-lg font-semibold text-foreground">{p.nome}</h3>
                     <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{p.descricao}</p>
-                    {p.tipo === "combo" && (p.itens?.length ?? 0) > 0 && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Inclui {p.itens!.length} {p.itens!.length === 1 ? "item" : "itens"}
-                      </p>
+                    {p.tipo === "combo" && (
+                      <ComboItensList
+                        itens={resolveComboItens(p, items)}
+                        compact
+                        className="mt-2"
+                      />
                     )}
                     <div className="mt-auto flex items-center justify-between pt-4">
                       <span className="font-display text-xl text-foreground">
