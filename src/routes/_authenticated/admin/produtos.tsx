@@ -22,6 +22,8 @@ import {
   type TipoProduto,
   type ItemCombo,
 } from "@/lib/api";
+import { resolveComboItens } from "@/lib/combo-display";
+import { ComboItensList } from "@/components/ComboItensList";
 
 export const Route = createFileRoute("/_authenticated/admin/produtos")({
   component: AdminProdutosPage,
@@ -177,11 +179,18 @@ function AdminProdutosPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 align-top">
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                       {p.tipo === "combo" ? <Boxes className="h-3.5 w-3.5" /> : <Package className="h-3.5 w-3.5" />}
-                      {p.tipo === "combo" ? `Combo (${p.itens?.length ?? 0})` : "Simples"}
+                      {p.tipo === "combo" ? "Combo" : "Simples"}
                     </span>
+                    {p.tipo === "combo" && (
+                      <ComboItensList
+                        itens={resolveComboItens(p, allProdutos)}
+                        compact
+                        className="mt-2 max-w-[220px]"
+                      />
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{p.categoria}</td>
                   <td className="px-4 py-3 font-medium">R$ {p.preco.toFixed(2)}</td>

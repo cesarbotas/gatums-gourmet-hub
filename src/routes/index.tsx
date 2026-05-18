@@ -6,6 +6,8 @@ import { Navigation } from "@/components/Navigation";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { produtosService, type Produto } from "@/lib/api";
+import { resolveComboItens } from "@/lib/combo-display";
+import { ComboItensList } from "@/components/ComboItensList";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -23,9 +25,13 @@ export const Route = createFileRoute("/")({
 
 function HomePage() {
   const [destaques, setDestaques] = useState<Produto[]>([]);
+  const [catalogo, setCatalogo] = useState<Produto[]>([]);
 
   useEffect(() => {
-    produtosService.list({ pageSize: 3 }).then((r) => setDestaques(r.items));
+    produtosService.list({ pageSize: 500 }).then((r) => {
+      setCatalogo(r.items);
+      setDestaques(r.items.filter((p) => p.disponivel).slice(0, 3));
+    });
   }, []);
 
   return (
@@ -149,6 +155,13 @@ function HomePage() {
                   <p className="text-xs uppercase tracking-wide text-accent">{p.categoria}</p>
                   <h3 className="mt-1 text-lg font-semibold text-foreground">{p.nome}</h3>
                   <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{p.descricao}</p>
+                  {p.tipo === "combo" && (
+                    <ComboItensList
+                      itens={resolveComboItens(p, catalogo)}
+                      compact
+                      className="mt-2"
+                    />
+                  )}
                   <div className="mt-4 flex items-center justify-between">
                     <span className="font-display text-xl text-foreground">
                       R$ {p.preco.toFixed(2)}
