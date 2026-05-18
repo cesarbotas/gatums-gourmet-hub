@@ -21,7 +21,9 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminRelatoriosRouteImport } from './routes/_authenticated/admin/relatorios'
 import { Route as AuthenticatedAdminProdutosRouteImport } from './routes/_authenticated/admin/produtos'
+import { Route as AuthenticatedAdminPedidosRouteImport } from './routes/_authenticated/admin/pedidos'
 import { Route as AuthenticatedAdminClientesRouteImport } from './routes/_authenticated/admin/clientes'
+import { Route as AuthenticatedPedidosPedidoIdPagamentoRouteImport } from './routes/_authenticated/pedidos.$pedidoId.pagamento'
 
 const SobreRoute = SobreRouteImport.update({
   id: '/sobre',
@@ -84,11 +86,23 @@ const AuthenticatedAdminProdutosRoute =
     path: '/produtos',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminPedidosRoute =
+  AuthenticatedAdminPedidosRouteImport.update({
+    id: '/pedidos',
+    path: '/pedidos',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminClientesRoute =
   AuthenticatedAdminClientesRouteImport.update({
     id: '/clientes',
     path: '/clientes',
     getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedPedidosPedidoIdPagamentoRoute =
+  AuthenticatedPedidosPedidoIdPagamentoRouteImport.update({
+    id: '/pedidos/$pedidoId/pagamento',
+    path: '/pedidos/$pedidoId/pagamento',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -101,9 +115,11 @@ export interface FileRoutesByFullPath {
   '/carrinho': typeof AuthenticatedCarrinhoRoute
   '/minha-conta': typeof AuthenticatedMinhaContaRoute
   '/admin/clientes': typeof AuthenticatedAdminClientesRoute
+  '/admin/pedidos': typeof AuthenticatedAdminPedidosRoute
   '/admin/produtos': typeof AuthenticatedAdminProdutosRoute
   '/admin/relatorios': typeof AuthenticatedAdminRelatoriosRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/pedidos/$pedidoId/pagamento': typeof AuthenticatedPedidosPedidoIdPagamentoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -114,9 +130,11 @@ export interface FileRoutesByTo {
   '/carrinho': typeof AuthenticatedCarrinhoRoute
   '/minha-conta': typeof AuthenticatedMinhaContaRoute
   '/admin/clientes': typeof AuthenticatedAdminClientesRoute
+  '/admin/pedidos': typeof AuthenticatedAdminPedidosRoute
   '/admin/produtos': typeof AuthenticatedAdminProdutosRoute
   '/admin/relatorios': typeof AuthenticatedAdminRelatoriosRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/pedidos/$pedidoId/pagamento': typeof AuthenticatedPedidosPedidoIdPagamentoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -130,9 +148,11 @@ export interface FileRoutesById {
   '/_authenticated/carrinho': typeof AuthenticatedCarrinhoRoute
   '/_authenticated/minha-conta': typeof AuthenticatedMinhaContaRoute
   '/_authenticated/admin/clientes': typeof AuthenticatedAdminClientesRoute
+  '/_authenticated/admin/pedidos': typeof AuthenticatedAdminPedidosRoute
   '/_authenticated/admin/produtos': typeof AuthenticatedAdminProdutosRoute
   '/_authenticated/admin/relatorios': typeof AuthenticatedAdminRelatoriosRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/pedidos/$pedidoId/pagamento': typeof AuthenticatedPedidosPedidoIdPagamentoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -146,9 +166,11 @@ export interface FileRouteTypes {
     | '/carrinho'
     | '/minha-conta'
     | '/admin/clientes'
+    | '/admin/pedidos'
     | '/admin/produtos'
     | '/admin/relatorios'
     | '/admin/'
+    | '/pedidos/$pedidoId/pagamento'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -159,9 +181,11 @@ export interface FileRouteTypes {
     | '/carrinho'
     | '/minha-conta'
     | '/admin/clientes'
+    | '/admin/pedidos'
     | '/admin/produtos'
     | '/admin/relatorios'
     | '/admin'
+    | '/pedidos/$pedidoId/pagamento'
   id:
     | '__root__'
     | '/'
@@ -174,9 +198,11 @@ export interface FileRouteTypes {
     | '/_authenticated/carrinho'
     | '/_authenticated/minha-conta'
     | '/_authenticated/admin/clientes'
+    | '/_authenticated/admin/pedidos'
     | '/_authenticated/admin/produtos'
     | '/_authenticated/admin/relatorios'
     | '/_authenticated/admin/'
+    | '/_authenticated/pedidos/$pedidoId/pagamento'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -274,6 +300,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminProdutosRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/pedidos': {
+      id: '/_authenticated/admin/pedidos'
+      path: '/pedidos'
+      fullPath: '/admin/pedidos'
+      preLoaderRoute: typeof AuthenticatedAdminPedidosRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/clientes': {
       id: '/_authenticated/admin/clientes'
       path: '/clientes'
@@ -281,11 +314,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminClientesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/pedidos/$pedidoId/pagamento': {
+      id: '/_authenticated/pedidos/$pedidoId/pagamento'
+      path: '/pedidos/$pedidoId/pagamento'
+      fullPath: '/pedidos/$pedidoId/pagamento'
+      preLoaderRoute: typeof AuthenticatedPedidosPedidoIdPagamentoRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminClientesRoute: typeof AuthenticatedAdminClientesRoute
+  AuthenticatedAdminPedidosRoute: typeof AuthenticatedAdminPedidosRoute
   AuthenticatedAdminProdutosRoute: typeof AuthenticatedAdminProdutosRoute
   AuthenticatedAdminRelatoriosRoute: typeof AuthenticatedAdminRelatoriosRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
@@ -293,6 +334,7 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminClientesRoute: AuthenticatedAdminClientesRoute,
+  AuthenticatedAdminPedidosRoute: AuthenticatedAdminPedidosRoute,
   AuthenticatedAdminProdutosRoute: AuthenticatedAdminProdutosRoute,
   AuthenticatedAdminRelatoriosRoute: AuthenticatedAdminRelatoriosRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
@@ -305,12 +347,15 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedCarrinhoRoute: typeof AuthenticatedCarrinhoRoute
   AuthenticatedMinhaContaRoute: typeof AuthenticatedMinhaContaRoute
+  AuthenticatedPedidosPedidoIdPagamentoRoute: typeof AuthenticatedPedidosPedidoIdPagamentoRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedCarrinhoRoute: AuthenticatedCarrinhoRoute,
   AuthenticatedMinhaContaRoute: AuthenticatedMinhaContaRoute,
+  AuthenticatedPedidosPedidoIdPagamentoRoute:
+    AuthenticatedPedidosPedidoIdPagamentoRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

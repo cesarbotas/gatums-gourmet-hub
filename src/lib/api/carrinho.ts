@@ -1,9 +1,12 @@
 // Carrinho por cliente (mock, persistido por userId no localStorage).
 import { readStore, writeStore, uid } from "./storage";
 import { produtosService, type Produto } from "./produtos";
+import { pedidosService, type Pedido } from "./pedidos";
 
 const cartKey = (userId: string) => `gg.cart.${userId}`;
 const VENDAS_KEY = "gg.vendas";
+
+export type { Pedido } from "./pedidos";
 
 export interface CartItem {
   produtoId: string;
@@ -12,18 +15,6 @@ export interface CartItem {
   foto: string;
   quantidade: number;
 }
-
-export interface Pedido {
-  id: string;
-  userId: string;
-  clienteNome: string;
-  itens: CartItem[];
-  total: number;
-  data: string;
-  status: "recebido" | "preparando" | "entregue";
-}
-
-const PEDIDOS_KEY = "gg.pedidos";
 
 export const cartService = {
   get(userId: string): CartItem[] {
@@ -71,19 +62,16 @@ export const cartService = {
     const items = cartService.get(userId);
     if (items.length === 0) throw new Error("Carrinho vazio");
     const total = cartService.total(items);
-    const pedido: Pedido = {
-      id: uid(),
+    const data = new Date().toISOString();
+
+    const pedido = pedidosService.create({
       userId,
       clienteNome,
       itens: items,
       total,
-      data: new Date().toISOString(),
-      status: "recebido",
-    };
-    const pedidos = readStore<Pedido[]>(PEDIDOS_KEY, []);
-    writeStore(PEDIDOS_KEY, [pedido, ...pedidos]);
+      data,
+    });
 
-    // refletir nas vendas para o relatório admin
     const vendas = readStore<unknown[]>(VENDAS_KEY, []);
     const novasVendas = items.map((i) => ({
       id: uid(),
@@ -92,6 +80,7 @@ export const cartService = {
       quantidade: i.quantidade,
       total: i.preco * i.quantidade,
       data: pedido.data,
+      pedidoId: pedido.id,
     }));
     writeStore(VENDAS_KEY, [...novasVendas, ...vendas]);
 
@@ -100,10 +89,10 @@ export const cartService = {
   },
 
   pedidosByUser(userId: string): Pedido[] {
-    return readStore<Pedido[]>(PEDIDOS_KEY, []).filter((p) => p.userId === userId);
+    return pedidosService.listByUser(userId);
   },
   pedidosAll(): Pedido[] {
-    return readStore<Pedido[]>(PEDIDOS_KEY, []);
+    return pedidosService.listAll();
   },
 };
 
