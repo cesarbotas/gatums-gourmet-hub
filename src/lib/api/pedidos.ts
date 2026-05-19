@@ -1,21 +1,16 @@
-import { readStore, writeStore, uid } from "./storage";
+import { apiRequest } from "./client";
 import type { CartItem } from "./carrinho";
 import {
   type PedidoEtapa,
   type PedidoEvento,
   type PedidoActor,
   type EntregaTipo,
+  ETAPAS_ORDEM,
   etapaAtual,
   proximaEtapa,
   podeAvancar,
 } from "@/lib/pedido-flow";
-import {
-  pagamentosService,
-  resumoPagamento,
-  type TransacaoPagamento,
-} from "./pagamentos";
-
-const PEDIDOS_KEY = "gg.pedidos";
+import { pagamentosService, resumoPagamento, type TransacaoPagamento } from "./pagamentos";
 
 export interface PedidoPagamento {
   transacaoId: string;
@@ -34,89 +29,53 @@ export interface Pedido {
   pagamento?: PedidoPagamento;
 }
 
-type LegacyPedido = Pedido & { status?: string };
+const ETAPA_TO_INT: Record<PedidoEtapa, number> = {
+  criado: 0,
+  aprovado: 1,
+  pagamento: 2,
+  pagamento_aprovado: 3,
+  envio_pendente: 4,
+  entregue: 5,
+  finalizado: 6,
+};
 
-function migrateLegacy(raw: LegacyPedido): Pedido {
-  if (raw.timeline?.length) return raw;
+const ENTREGA_TO_INT: Record<EntregaTipo, number> = { transporte: 0, retirada: 1 };
 
-  const legacy = raw.status ?? "recebido";
-  const map: Record<string, PedidoEtapa> = {
-    recebido: "criado",
-    preparando: "envio_pendente",
-    entregue: "entregue",
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapPedido(raw: any): Pedido {
+  return {
+    id: raw.id,
+    userId: raw.userId ?? raw.clienteId ?? "",
+    clienteNome: raw.clienteNome ?? raw.cliente?.nome ?? "",
+    itens: raw.itens ?? [],
+    total: raw.total ?? 0,
+    data: raw.data ?? raw.criadoEm ?? new Date().toISOString(),
+    timeline: raw.timeline ?? [{ etapa: ETAPAS_ORDEM[raw.etapa ?? 0], em: raw.criadoEm ?? new Date().toISOString(), por: "cliente" as PedidoActor }],
+    pagamento: raw.pagamento,
   };
-  const alvo = map[legacy] ?? "criado";
-  const timeline: PedidoEvento[] = [
-    { etapa: "criado", em: raw.data, por: "cliente" },
-  ];
-  if (alvo !== "criado") {
-    const steps: PedidoEtapa[] = [
-      "aprovado",
-      "pagamento",
-      "pagamento_aprovado",
-      "envio_pendente",
-      "entregue",
-      "finalizado",
-    ];
-    const endIdx = steps.indexOf(alvo);
-    if (endIdx >= 0) {
-      for (let i = 0; i <= endIdx; i++) {
-        timeline.push({
-          etapa: steps[i],
-          em: raw.data,
-          por: steps[i] === "pagamento" ? "cliente" : "admin",
-          ...(steps[i] === "entregue" ? { entregaTipo: "transporte" as EntregaTipo } : {}),
-        });
-      }
-    }
-  }
-
-  const { status: _s, ...rest } = raw;
-  return { ...rest, timeline };
-}
-
-function load(): Pedido[] {
-  return readStore<LegacyPedido[]>(PEDIDOS_KEY, []).map(migrateLegacy);
-}
-
-function save(list: Pedido[]) {
-  writeStore(PEDIDOS_KEY, list);
-}
-
-function updatePedido(id: string, fn: (p: Pedido) => Pedido): Pedido {
-  const list = load();
-  const idx = list.findIndex((p) => p.id === id);
-  if (idx === -1) throw new Error("Pedido não encontrado");
-  list[idx] = fn(list[idx]);
-  save(list);
-  return list[idx];
 }
 
 export const pedidosService = {
-  create(input: Omit<Pedido, "id" | "timeline"> & { timeline?: PedidoEvento[] }): Pedido {
-    const pedido: Pedido = {
-      ...input,
-      id: uid(),
-      timeline: input.timeline ?? [
-        { etapa: "criado", em: new Date().toISOString(), por: "cliente" },
-      ],
-    };
-    save([pedido, ...load()]);
-    return pedido;
+  async listAll(): Promise<Pedido[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await apiRequest<any>("/pedidos?page=1&pageSize=100");
+    return (res.items ?? res).map(mapPedido);
   },
 
-  listAll(): Pedido[] {
-    return load().sort((a, b) => b.data.localeCompare(a.data));
+  async listByUser(_userId: string): Promise<Pedido[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await apiRequest<any>("/pedidos?page=1&pageSize=100");
+    return (res.items ?? res).map(mapPedido);
   },
 
-  listByUser(userId: string): Pedido[] {
-    return load()
-      .filter((p) => p.userId === userId)
-      .sort((a, b) => b.data.localeCompare(a.data));
-  },
-
-  getById(id: string): Pedido | null {
-    return load().find((p) => p.id === id) ?? null;
+  async getById(id: string): Promise<Pedido | null> {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = await apiRequest<any>(`/pedidos/${id}`);
+      return mapPedido(raw);
+    } catch {
+      return null;
+    }
   },
 
   etapaAtual(pedido: Pedido): PedidoEtapa {
@@ -127,39 +86,12 @@ export const pedidosService = {
     return podeAvancar(pedido.timeline, actor);
   },
 
-  /** Registra pagamento aprovado pela API e avança para etapa "pagamento". */
-  concluirPagamentoCliente(pedidoId: string, transacao: TransacaoPagamento): Pedido {
-    const pedido = this.getById(pedidoId);
-    if (!pedido) throw new Error("Pedido não encontrado");
-    if (transacao.status !== "aprovada") {
-      throw new Error("Pagamento não foi aprovado pela operadora.");
-    }
-    if (!podeAvancar(pedido.timeline, "cliente")) {
-      throw new Error("Este pedido não está aguardando pagamento.");
-    }
-    const prox = proximaEtapa(etapaAtual(pedido.timeline));
-    if (prox !== "pagamento") {
-      throw new Error("Etapa de pagamento indisponível.");
-    }
-
-    const resumo = resumoPagamento(transacao);
-    return updatePedido(pedidoId, (p) => ({
-      ...p,
-      pagamento: {
-        transacaoId: transacao.id,
-        resumo,
-        aprovadoEm: transacao.atualizadoEm,
-      },
-      timeline: [
-        ...p.timeline,
-        {
-          etapa: "pagamento",
-          em: new Date().toISOString(),
-          por: "cliente",
-          observacao: resumo,
-        },
-      ],
-    }));
+  concluirPagamentoCliente(pedidoId: string, transacao: TransacaoPagamento): Promise<Pedido> {
+    if (transacao.status !== "aprovada") throw new Error("Pagamento não foi aprovado pela operadora.");
+    return apiRequest<Pedido>(`/pedidos/${pedidoId}/pagamento/concluir`, {
+      method: "POST",
+      json: { transacaoId: transacao.id },
+    }).then(mapPedido);
   },
 
   async avancar(
@@ -167,37 +99,34 @@ export const pedidosService = {
     actor: PedidoActor,
     opts?: { observacao?: string; entregaTipo?: EntregaTipo },
   ): Promise<Pedido> {
-    const pedido = this.getById(id);
+    const pedido = await this.getById(id);
     if (!pedido) throw new Error("Pedido não encontrado");
-    if (!podeAvancar(pedido.timeline, actor)) {
-      throw new Error("Esta etapa não pode ser concluída agora.");
-    }
+    if (!podeAvancar(pedido.timeline, actor)) throw new Error("Esta etapa não pode ser concluída agora.");
     const prox = proximaEtapa(etapaAtual(pedido.timeline));
     if (!prox) throw new Error("Pedido já está finalizado.");
 
     if (prox === "pagamento_aprovado") {
-      if (!pedido.pagamento?.transacaoId) {
-        throw new Error("Pedido sem transação de pagamento.");
-      }
+      if (!pedido.pagamento?.transacaoId) throw new Error("Pedido sem transação de pagamento.");
       await pagamentosService.validarParaAprovacao(pedido.pagamento.transacaoId);
     }
 
-    if (prox === "entregue" && !opts?.entregaTipo) {
-      throw new Error("Informe o tipo de entrega (transporte ou retirada).");
-    }
+    if (prox === "entregue" && !opts?.entregaTipo) throw new Error("Informe o tipo de entrega.");
 
-    return updatePedido(id, (p) => ({
-      ...p,
-      timeline: [
-        ...p.timeline,
-        {
-          etapa: prox,
-          em: new Date().toISOString(),
-          por: actor,
-          observacao: opts?.observacao,
-          entregaTipo: opts?.entregaTipo,
-        },
-      ],
-    }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = await apiRequest<any>(`/pedidos/${id}/etapas/avancar`, {
+      method: "POST",
+      json: {
+        proximaEtapa: ETAPA_TO_INT[prox],
+        observacao: opts?.observacao ?? null,
+        entregaTipo: opts?.entregaTipo ? ENTREGA_TO_INT[opts.entregaTipo] : 0,
+      },
+    });
+    return mapPedido(raw);
+  },
+
+  // kept for carrinho.ts compatibility
+  create(input: Omit<Pedido, "id" | "timeline"> & { timeline?: PedidoEvento[] }): Pedido {
+    throw new Error("Use cartService.checkout() to create orders via the API.");
+    return input as unknown as Pedido;
   },
 };
