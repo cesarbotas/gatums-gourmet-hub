@@ -5,9 +5,15 @@
   "type": "module",
   "scripts": {
     "start:local": "node dev-local.mjs",
-    "dev": "vite dev",
+    "dev": "vite dev --mode local",
+    "dev:desenvolvimento": "vite dev --mode development",
+    "dev:homologacao": "vite dev --mode homologacao",
+    "dev:producao": "vite dev --mode production",
     "build": "vite build",
+    "build:local": "vite build --mode local",
     "build:dev": "vite build --mode development",
+    "build:hml": "vite build --mode homologacao",
+    "build:prod": "vite build --mode production",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."
