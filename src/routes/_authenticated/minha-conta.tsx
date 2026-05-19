@@ -24,7 +24,7 @@ function MinhaContaPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const reload = useCallback(() => {
-    if (user) setPedidos(pedidosService.listByUser(user.id));
+    if (user) pedidosService.listByUser(user.id).then(setPedidos).catch(() => setPedidos([]));
   }, [user]);
 
   useEffect(reload, [reload]);
