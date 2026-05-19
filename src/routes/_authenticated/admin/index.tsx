@@ -12,16 +12,17 @@ function AdminOverview() {
 
   useEffect(() => {
     (async () => {
-      const [p, c, r] = await Promise.all([
+      const [p, c, r, pedidos] = await Promise.all([
         produtosService.list({ pageSize: 1 }),
         clientesService.list({ pageSize: 1 }),
         vendasService.resumo(),
+        pedidosService.listAll(),
       ]);
       setStats({
         produtos: p.total,
         clientes: c.total,
-        pedidos: pedidosService.listAll().length,
-        faturamento: r.totalFaturamento,
+        pedidos: pedidos.length,
+        faturamento: r.totalFaturamento ?? 0,
       });
     })();
   }, []);
