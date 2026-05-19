@@ -1,7 +1,6 @@
-// Mock auth backed by localStorage. Replace with real API calls when backend is ready.
-import { readStore, writeStore, uid } from "./storage";
+import { apiRequest } from "./client";
+import { writeStore, readStore } from "./storage";
 
-const USERS_KEY = "gg.users";
 const SESSION_KEY = "gg.session";
 
 export type UserRole = "admin" | "cliente";
@@ -14,54 +13,25 @@ export interface User {
   role: UserRole;
 }
 
-interface StoredUser extends User {
-  password: string;
-}
-
 interface Session {
   token: string;
   user: User;
 }
 
-function seedIfEmpty() {
-  const users = readStore<StoredUser[]>(USERS_KEY, []);
-  if (users.length === 0) {
-    const seeded: StoredUser[] = [
-      {
-        id: uid(),
-        nome: "Administrador",
-        email: "admin@gatums.com",
-        password: "admin123",
-        role: "admin",
-      },
-      {
-        id: uid(),
-        nome: "Cliente Demo",
-        email: "cliente@gatums.com",
-        password: "cliente123",
-        role: "cliente",
-      },
-    ];
-    writeStore(USERS_KEY, seeded);
-  }
-}
-
-function delay<T>(value: T, ms = 250): Promise<T> {
-  return new Promise((r) => setTimeout(() => r(value), ms));
+interface LoginResponse {
+  token: string;
+  user: User;
 }
 
 export const authService = {
   async login(email: string, password: string): Promise<Session> {
-    seedIfEmpty();
-    const users = readStore<StoredUser[]>(USERS_KEY, []);
-    const found = users.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password,
-    );
-    if (!found) throw new Error("E-mail ou senha incorretos");
-    const { password: _p, ...user } = found;
-    const session: Session = { token: `mock.${found.id}.${Date.now()}`, user };
+    const res = await apiRequest<LoginResponse>("/auth/login", {
+      method: "POST",
+      json: { email, senha: password },
+    });
+    const session: Session = { token: res.token, user: res.user };
     writeStore(SESSION_KEY, session);
-    return delay(session, 200);
+    return session;
   },
 
   async register(input: {
@@ -70,28 +40,29 @@ export const authService = {
     password: string;
     telefone?: string;
   }): Promise<Session> {
-    seedIfEmpty();
-    const users = readStore<StoredUser[]>(USERS_KEY, []);
-    if (users.some((u) => u.email.toLowerCase() === input.email.toLowerCase())) {
-      throw new Error("Este e-mail já está cadastrado");
-    }
-    const newUser: StoredUser = {
-      id: uid(),
-      nome: input.nome,
-      email: input.email,
-      telefone: input.telefone,
-      password: input.password,
-      role: "cliente",
-    };
-    writeStore(USERS_KEY, [...users, newUser]);
-    const { password: _p, ...user } = newUser;
-    const session: Session = { token: `mock.${newUser.id}.${Date.now()}`, user };
+    const res = await apiRequest<LoginResponse>("/auth/register", {
+      method: "POST",
+      json: { nome: input.nome, email: input.email, senha: input.password, telefone: input.telefone },
+    });
+    const session: Session = { token: res.token, user: res.user };
     writeStore(SESSION_KEY, session);
-    return delay(session, 200);
+    return session;
   },
 
-  logout() {
-    if (typeof window !== "undefined") window.localStorage.removeItem(SESSION_KEY);
+  async logout(): Promise<void> {
+    try {
+      await apiRequest("/auth/logout", { method: "POST" });
+    } finally {
+      if (typeof window !== "undefined") window.localStorage.removeItem(SESSION_KEY);
+    }
+  },
+
+  async me(): Promise<User | null> {
+    try {
+      return await apiRequest<User>("/auth/me");
+    } catch {
+      return null;
+    }
   },
 
   getSession(): Session | null {

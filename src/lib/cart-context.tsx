@@ -17,33 +17,34 @@ interface CartContextValue {
 const CartContext = createContext<CartContextValue | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-  const userId = user?.id ?? "guest";
+  const { user, isAuthenticated } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
 
   useEffect(() => {
-    setItems(cartService.get(userId));
-  }, [userId]);
+    if (!isAuthenticated) { setItems([]); return; }
+    cartService.getRemote().then(setItems).catch(() => setItems([]));
+  }, [isAuthenticated]);
 
   const add = useCallback(
     (p: Produto, qtd = 1) => {
-      cartService.add(userId, p, qtd).then(setItems);
+      cartService.add(user?.id ?? "guest", p, qtd).then(setItems).catch(console.error);
     },
-    [userId],
+    [user],
   );
-  const setQty = useCallback(
-    (produtoId: string, qtd: number) => setItems(cartService.setQty(userId, produtoId, qtd)),
-    [userId],
-  );
-  const remove = useCallback(
-    (produtoId: string) => setItems(cartService.remove(userId, produtoId)),
-    [userId],
-  );
+
+  const setQty = useCallback((produtoId: string, qtd: number) => {
+    cartService.setQtyRemote(produtoId, qtd).then(setItems).catch(console.error);
+  }, []);
+
+  const remove = useCallback((produtoId: string) => {
+    cartService.removeRemote(produtoId).then(setItems).catch(console.error);
+  }, []);
+
   const clear = useCallback(() => {
-    cartService.clear(userId);
-    setItems([]);
-  }, [userId]);
-  const checkout = useCallback(async () => {
+    cartService.clearRemote().then(() => setItems([])).catch(console.error);
+  }, []);
+
+  const checkout = useCallback(async (): Promise<Pedido> => {
     if (!user) throw new Error("Faça login para finalizar a compra");
     const p = await cartService.checkout(user.id, user.nome);
     setItems([]);
