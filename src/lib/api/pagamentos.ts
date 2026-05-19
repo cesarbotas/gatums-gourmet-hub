@@ -303,18 +303,21 @@ async function mockConfirmarPixCliente(transacaoId: string): Promise<TransacaoPa
 
 // ——— Serviço público ———
 
+const METODO_TO_INT: Record<MetodoPagamento, number> = {
+  cartao_debito: 0,
+  cartao_credito: 1,
+  pix: 2,
+};
+
 export const pagamentosService = {
   listarOpcoes(): OpcaoPagamento[] {
     return OPCOES_PAGAMENTO;
   },
 
   async iniciar(pedidoId: string, metodo: MetodoPagamento, valor: number): Promise<TransacaoPagamento> {
-    const body = { pedidoId, metodo, valor };
-    if (MOCK_MODE) return mockIniciar(body);
-    return apiRequest<TransacaoPagamento>("/pagamentos/iniciar", {
-      method: "POST",
-      json: body,
-    });
+    const body = { pedidoId, metodo: METODO_TO_INT[metodo], valor };
+    if (MOCK_MODE) return mockIniciar({ pedidoId, metodo, valor });
+    return apiRequest<TransacaoPagamento>("/pagamentos/iniciar", { method: "POST", json: body });
   },
 
   async processarCartao(
@@ -322,10 +325,7 @@ export const pagamentosService = {
     dados: { numero: string; nome: string; validade: string; cvv: string },
   ): Promise<TransacaoPagamento> {
     if (MOCK_MODE) return mockProcessarCartao(transacaoId, dados);
-    return apiRequest<TransacaoPagamento>(`/pagamentos/${transacaoId}/cartao`, {
-      method: "POST",
-      json: dados,
-    });
+    return apiRequest<TransacaoPagamento>(`/pagamentos/${transacaoId}/cartao`, { method: "POST", json: dados });
   },
 
   async consultarStatus(transacaoId: string): Promise<TransacaoPagamento> {
@@ -335,17 +335,12 @@ export const pagamentosService = {
 
   async confirmarPix(transacaoId: string): Promise<TransacaoPagamento> {
     if (MOCK_MODE) return mockConfirmarPixCliente(transacaoId);
-    return apiRequest<TransacaoPagamento>(`/pagamentos/${transacaoId}/pix/confirmar`, {
-      method: "POST",
-    });
+    return apiRequest<TransacaoPagamento>(`/pagamentos/${transacaoId}/pix/confirmar`, { method: "POST" });
   },
 
-  /** Validação server-side antes do admin aprovar o pagamento no pedido */
   async validarParaAprovacao(transacaoId: string): Promise<TransacaoPagamento> {
     if (MOCK_MODE) return mockValidarAdmin(transacaoId);
-    return apiRequest<TransacaoPagamento>(`/pagamentos/${transacaoId}/validar`, {
-      method: "POST",
-    });
+    return apiRequest<TransacaoPagamento>(`/pagamentos/${transacaoId}/validar`, { method: "POST" });
   },
 
   getLocal(transacaoId: string): TransacaoPagamento | null {
