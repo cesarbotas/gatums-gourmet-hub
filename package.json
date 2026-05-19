@@ -6,8 +6,12 @@
   "scripts": {
     "start:local": "node dev-local.mjs",
     "dev": "vite dev",
+    "dev:hml": "vite dev --mode homologacao",
+    "dev:prod": "vite dev --mode production",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "build:hml": "vite build --mode homologacao",
+    "build:prod": "vite build --mode production",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."
