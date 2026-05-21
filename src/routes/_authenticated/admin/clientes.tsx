@@ -13,6 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { clientesService, PAGE_SIZE_OPTIONS, type Cliente } from "@/lib/api";
+import { enderecosService, type Endereco } from "@/lib/api/enderecos";
+import { EnderecoForm, emptyEndereco } from "@/components/EnderecoForm";
 
 export const Route = createFileRoute("/_authenticated/admin/clientes")({
   component: AdminClientesPage,
@@ -33,6 +35,7 @@ function AdminClientesPage() {
   const [view, setView] = useState<"list" | "form">("list");
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [form, setForm] = useState(empty);
+  const [endereco, setEndereco] = useState<Endereco>(emptyEndereco);
 
   const load = () => {
     clientesService.list({ page, pageSize }).then((r) => {
@@ -47,12 +50,17 @@ function AdminClientesPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = { ...form, cidade: endereco.cidade || form.cidade };
+      let cli: Cliente;
       if (editing) {
-        await clientesService.update(editing.id, form);
+        cli = await clientesService.update(editing.id, payload);
         toast.success("Cliente atualizado");
       } else {
-        await clientesService.create(form);
+        cli = await clientesService.create(payload);
         toast.success("Cliente criado");
+      }
+      if (endereco.cep && endereco.logradouro) {
+        await enderecosService.save(cli.id, { ...endereco, principal: true });
       }
       setView("list");
       load();
@@ -82,6 +90,7 @@ function AdminClientesPage() {
             onClick={() => {
               setEditing(null);
               setForm(empty);
+              setEndereco(emptyEndereco);
               setView("form");
             }}
           >
@@ -118,10 +127,12 @@ function AdminClientesPage() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() => {
+                        onClick={async () => {
                           setEditing(c);
                           const { id: _i, criadoEm: _ce, ...rest } = c;
                           setForm(rest);
+                          const end = await enderecosService.getPrincipal(c.id);
+                          setEndereco(end ?? { ...emptyEndereco, cidade: c.cidade });
                           setView("form");
                         }}
                       >
@@ -233,14 +244,14 @@ function AdminClientesPage() {
               onChange={(e) => setForm({ ...form, telefone: e.target.value })}
             />
           </div>
-          <div>
-            <Label htmlFor="cidade">Cidade</Label>
-            <Input
-              id="cidade"
-              required
-              value={form.cidade}
-              onChange={(e) => setForm({ ...form, cidade: e.target.value })}
-            />
+          <div className="md:col-span-2">
+            <h3 className="mt-2 text-sm font-semibold text-foreground">Endereço</h3>
+            <p className="text-xs text-muted-foreground">
+              Informe o CEP e use a busca para preencher automaticamente.
+            </p>
+            <div className="mt-3">
+              <EnderecoForm value={endereco} onChange={setEndereco} showPrincipal />
+            </div>
           </div>
           <div className="flex gap-2 md:col-span-2">
             <Button type="submit">{editing ? "Salvar" : "Criar"}</Button>

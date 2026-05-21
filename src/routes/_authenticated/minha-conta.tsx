@@ -1,12 +1,15 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { Package, ChevronDown, ChevronUp, CreditCard } from "lucide-react";
+import { Package, ChevronDown, ChevronUp, CreditCard, MapPin } from "lucide-react";
+import { toast } from "sonner";
 import { Navigation } from "@/components/Navigation";
 import { Footer } from "@/components/Footer";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { PedidoTimeline } from "@/components/PedidoTimeline";
 import { pedidosService, type Pedido } from "@/lib/api/pedidos";
+import { enderecosService, type Endereco } from "@/lib/api/enderecos";
+import { EnderecoForm, emptyEndereco } from "@/components/EnderecoForm";
 import {
   etapaAtual,
   proximaAcaoLabel,
@@ -22,6 +25,9 @@ function MinhaContaPage() {
   const { user, logout, isAdmin } = useAuth();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [endereco, setEndereco] = useState<Endereco>(emptyEndereco);
+  const [editEnd, setEditEnd] = useState(false);
+  const [savingEnd, setSavingEnd] = useState(false);
 
   const reload = useCallback(() => {
     if (user) pedidosService.listByUser(user.id).then(setPedidos).catch(() => setPedidos([]));
@@ -29,8 +35,34 @@ function MinhaContaPage() {
 
   useEffect(reload, [reload]);
 
+  useEffect(() => {
+    if (!user) return;
+    enderecosService.getPrincipal(user.id).then((e) => {
+      if (e) setEndereco(e);
+      else setEditEnd(true);
+    });
+  }, [user]);
+
   if (!user) return null;
   if (isAdmin) return <Navigate to="/admin/pedidos" />;
+
+  const salvarEndereco = async () => {
+    if (!endereco.cep || !endereco.logradouro || !endereco.numero) {
+      toast.error("Preencha CEP, logradouro e número");
+      return;
+    }
+    setSavingEnd(true);
+    try {
+      const saved = await enderecosService.save(user.id, { ...endereco, principal: true });
+      setEndereco(saved);
+      setEditEnd(false);
+      toast.success("Endereço salvo");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao salvar");
+    } finally {
+      setSavingEnd(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -56,6 +88,52 @@ function MinhaContaPage() {
               Sair da conta
             </Button>
           </section>
+
+          <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+                <MapPin className="h-4 w-4 text-accent" /> Endereço de entrega
+              </h2>
+              {!editEnd && endereco.logradouro && (
+                <Button size="sm" variant="ghost" onClick={() => setEditEnd(true)}>
+                  Editar
+                </Button>
+              )}
+            </div>
+
+            {editEnd ? (
+              <div className="mt-4 space-y-4">
+                <EnderecoForm value={endereco} onChange={setEndereco} />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={salvarEndereco} disabled={savingEnd}>
+                    {savingEnd ? "Salvando..." : "Salvar endereço"}
+                  </Button>
+                  {endereco.id && (
+                    <Button size="sm" variant="outline" onClick={() => setEditEnd(false)}>
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : endereco.logradouro ? (
+              <address className="mt-4 not-italic text-sm text-muted-foreground">
+                <p className="text-foreground">
+                  {endereco.logradouro}, {endereco.numero}
+                  {endereco.complemento ? ` — ${endereco.complemento}` : ""}
+                </p>
+                <p>
+                  {endereco.bairro} · {endereco.cidade}/{endereco.uf}
+                </p>
+                <p>CEP {endereco.cep}</p>
+                {endereco.referencia && <p>Ref: {endereco.referencia}</p>}
+              </address>
+            ) : (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Você ainda não cadastrou seu endereço de entrega.
+              </p>
+            )}
+          </section>
+
 
           <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:col-span-2">
             <h2 className="text-lg font-semibold text-foreground">Meus pedidos</h2>
