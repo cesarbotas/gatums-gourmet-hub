@@ -1,12 +1,15 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { Package, ChevronDown, ChevronUp, CreditCard } from "lucide-react";
+import { Package, ChevronDown, ChevronUp, CreditCard, MapPin } from "lucide-react";
+import { toast } from "sonner";
 import { Navigation } from "@/components/Navigation";
 import { Footer } from "@/components/Footer";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { PedidoTimeline } from "@/components/PedidoTimeline";
 import { pedidosService, type Pedido } from "@/lib/api/pedidos";
+import { enderecosService, type Endereco } from "@/lib/api/enderecos";
+import { EnderecoForm, emptyEndereco } from "@/components/EnderecoForm";
 import {
   etapaAtual,
   proximaAcaoLabel,
