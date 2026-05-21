@@ -90,6 +90,7 @@ function AdminClientesPage() {
             onClick={() => {
               setEditing(null);
               setForm(empty);
+              setEndereco(emptyEndereco);
               setView("form");
             }}
           >
