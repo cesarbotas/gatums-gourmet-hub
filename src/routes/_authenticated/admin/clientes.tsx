@@ -127,10 +127,12 @@ function AdminClientesPage() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() => {
+                        onClick={async () => {
                           setEditing(c);
                           const { id: _i, criadoEm: _ce, ...rest } = c;
                           setForm(rest);
+                          const end = await enderecosService.getPrincipal(c.id);
+                          setEndereco(end ?? { ...emptyEndereco, cidade: c.cidade });
                           setView("form");
                         }}
                       >
