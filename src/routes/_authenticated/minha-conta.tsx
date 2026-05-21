@@ -89,6 +89,52 @@ function MinhaContaPage() {
             </Button>
           </section>
 
+          <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+                <MapPin className="h-4 w-4 text-accent" /> Endereço de entrega
+              </h2>
+              {!editEnd && endereco.logradouro && (
+                <Button size="sm" variant="ghost" onClick={() => setEditEnd(true)}>
+                  Editar
+                </Button>
+              )}
+            </div>
+
+            {editEnd ? (
+              <div className="mt-4 space-y-4">
+                <EnderecoForm value={endereco} onChange={setEndereco} />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={salvarEndereco} disabled={savingEnd}>
+                    {savingEnd ? "Salvando..." : "Salvar endereço"}
+                  </Button>
+                  {endereco.id && (
+                    <Button size="sm" variant="outline" onClick={() => setEditEnd(false)}>
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : endereco.logradouro ? (
+              <address className="mt-4 not-italic text-sm text-muted-foreground">
+                <p className="text-foreground">
+                  {endereco.logradouro}, {endereco.numero}
+                  {endereco.complemento ? ` — ${endereco.complemento}` : ""}
+                </p>
+                <p>
+                  {endereco.bairro} · {endereco.cidade}/{endereco.uf}
+                </p>
+                <p>CEP {endereco.cep}</p>
+                {endereco.referencia && <p>Ref: {endereco.referencia}</p>}
+              </address>
+            ) : (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Você ainda não cadastrou seu endereço de entrega.
+              </p>
+            )}
+          </section>
+
+
           <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:col-span-2">
             <h2 className="text-lg font-semibold text-foreground">Meus pedidos</h2>
             {pedidos.length === 0 ? (
