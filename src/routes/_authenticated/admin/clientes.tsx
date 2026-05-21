@@ -244,14 +244,14 @@ function AdminClientesPage() {
               onChange={(e) => setForm({ ...form, telefone: e.target.value })}
             />
           </div>
-          <div>
-            <Label htmlFor="cidade">Cidade</Label>
-            <Input
-              id="cidade"
-              required
-              value={form.cidade}
-              onChange={(e) => setForm({ ...form, cidade: e.target.value })}
-            />
+          <div className="md:col-span-2">
+            <h3 className="mt-2 text-sm font-semibold text-foreground">Endereço</h3>
+            <p className="text-xs text-muted-foreground">
+              Informe o CEP e use a busca para preencher automaticamente.
+            </p>
+            <div className="mt-3">
+              <EnderecoForm value={endereco} onChange={setEndereco} showPrincipal />
+            </div>
           </div>
           <div className="flex gap-2 md:col-span-2">
             <Button type="submit">{editing ? "Salvar" : "Criar"}</Button>
