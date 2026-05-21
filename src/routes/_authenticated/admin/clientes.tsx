@@ -13,6 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { clientesService, PAGE_SIZE_OPTIONS, type Cliente } from "@/lib/api";
+import { enderecosService, type Endereco } from "@/lib/api/enderecos";
+import { EnderecoForm, emptyEndereco } from "@/components/EnderecoForm";
 
 export const Route = createFileRoute("/_authenticated/admin/clientes")({
   component: AdminClientesPage,
