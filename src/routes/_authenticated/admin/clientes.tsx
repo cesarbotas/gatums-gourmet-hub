@@ -35,6 +35,7 @@ function AdminClientesPage() {
   const [view, setView] = useState<"list" | "form">("list");
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [form, setForm] = useState(empty);
+  const [endereco, setEndereco] = useState<Endereco>(emptyEndereco);
 
   const load = () => {
     clientesService.list({ page, pageSize }).then((r) => {
