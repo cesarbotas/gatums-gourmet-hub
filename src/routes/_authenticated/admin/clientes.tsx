@@ -50,12 +50,17 @@ function AdminClientesPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = { ...form, cidade: endereco.cidade || form.cidade };
+      let cli: Cliente;
       if (editing) {
-        await clientesService.update(editing.id, form);
+        cli = await clientesService.update(editing.id, payload);
         toast.success("Cliente atualizado");
       } else {
-        await clientesService.create(form);
+        cli = await clientesService.create(payload);
         toast.success("Cliente criado");
+      }
+      if (endereco.cep && endereco.logradouro) {
+        await enderecosService.save(cli.id, { ...endereco, principal: true });
       }
       setView("list");
       load();
