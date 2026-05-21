@@ -25,6 +25,9 @@ function MinhaContaPage() {
   const { user, logout, isAdmin } = useAuth();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [endereco, setEndereco] = useState<Endereco>(emptyEndereco);
+  const [editEnd, setEditEnd] = useState(false);
+  const [savingEnd, setSavingEnd] = useState(false);
 
   const reload = useCallback(() => {
     if (user) pedidosService.listByUser(user.id).then(setPedidos).catch(() => setPedidos([]));
@@ -32,8 +35,34 @@ function MinhaContaPage() {
 
   useEffect(reload, [reload]);
 
+  useEffect(() => {
+    if (!user) return;
+    enderecosService.getPrincipal(user.id).then((e) => {
+      if (e) setEndereco(e);
+      else setEditEnd(true);
+    });
+  }, [user]);
+
   if (!user) return null;
   if (isAdmin) return <Navigate to="/admin/pedidos" />;
+
+  const salvarEndereco = async () => {
+    if (!endereco.cep || !endereco.logradouro || !endereco.numero) {
+      toast.error("Preencha CEP, logradouro e número");
+      return;
+    }
+    setSavingEnd(true);
+    try {
+      const saved = await enderecosService.save(user.id, { ...endereco, principal: true });
+      setEndereco(saved);
+      setEditEnd(false);
+      toast.success("Endereço salvo");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao salvar");
+    } finally {
+      setSavingEnd(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
