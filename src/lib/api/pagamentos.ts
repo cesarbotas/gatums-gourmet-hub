@@ -28,14 +28,41 @@ const STATUS_FROM_INT: Record<number, StatusTransacao> = {
   6: "cancelada",
 };
 
+/**
+ * A API representa `metodo` de 3 formas (ver Postman — "Inconsistência de formato"):
+ * inteiro (enum), "cartao_credito" (opcoes) e "cartaocredito" (TransacaoResponse).
+ */
+function normalizeMetodo(v: unknown): MetodoPagamento {
+  if (typeof v === "number") return METODO_FROM_INT[v] ?? "pix";
+  const s = String(v ?? "").toLowerCase().replace(/[_\s-]/g, "");
+  if (s === "cartaodebito") return "cartao_debito";
+  if (s === "cartaocredito") return "cartao_credito";
+  return "pix";
+}
+
+function normalizeStatus(v: unknown): StatusTransacao {
+  if (typeof v === "number") return STATUS_FROM_INT[v] ?? "criada";
+  const s = String(v ?? "").toLowerCase().replace(/[_\s-]/g, "");
+  const map: Record<string, StatusTransacao> = {
+    criada: "criada",
+    aguardandopagamento: "aguardando_pagamento",
+    processando: "processando",
+    aprovada: "aprovada",
+    recusada: "recusada",
+    expirada: "expirada",
+    cancelada: "cancelada",
+  };
+  return map[s] ?? "criada";
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapTransacao(raw: any): TransacaoPagamento {
   const t: TransacaoPagamento = {
     id: raw.id,
     pedidoId: raw.pedidoId,
-    metodo: typeof raw.metodo === "number" ? METODO_FROM_INT[raw.metodo] : raw.metodo,
+    metodo: normalizeMetodo(raw.metodo),
     valor: raw.valor ?? 0,
-    status: typeof raw.status === "number" ? STATUS_FROM_INT[raw.status] : raw.status,
+    status: normalizeStatus(raw.status),
     criadoEm: raw.criadoEm ?? new Date().toISOString(),
     atualizadoEm: raw.atualizadoEm ?? raw.criadoEm ?? new Date().toISOString(),
     operadora: raw.operadora ?? "",
@@ -368,7 +395,7 @@ export const pagamentosService = {
       if (!items.length) return OPCOES_PAGAMENTO;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return items.map((o: any) => ({
-        id: typeof o.id === "number" ? METODO_FROM_INT[o.id] : o.id,
+        id: normalizeMetodo(o.id ?? o.metodo),
         label: o.label ?? o.nome ?? "",
         descricao: o.descricao ?? "",
       }));
