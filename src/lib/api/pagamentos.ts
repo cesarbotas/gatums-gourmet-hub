@@ -395,7 +395,7 @@ export const pagamentosService = {
       if (!items.length) return OPCOES_PAGAMENTO;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return items.map((o: any) => ({
-        id: typeof o.id === "number" ? METODO_FROM_INT[o.id] : o.id,
+        id: normalizeMetodo(o.id ?? o.metodo),
         label: o.label ?? o.nome ?? "",
         descricao: o.descricao ?? "",
       }));
