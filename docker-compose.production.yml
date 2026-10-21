@@ -1,0 +1,29 @@
+# Uso na VPS: docker compose -f docker-compose.production.yml --env-file .env up -d --build
+services:
+  gatums-site:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Base da API embutida no bundle do cliente em build time.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    container_name: gatums-site
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+    # Publica apenas no loopback: o Nginx host faz o TLS e o proxy reverso.
+    # O container escuta na 3000 (Node SSR); externamente só via 127.0.0.1:8090.
+    ports:
+      - "127.0.0.1:8090:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - gatums-site-net
+
+networks:
+  gatums-site-net:
+    driver: bridge
