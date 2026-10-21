@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-ssr
+.output
+.vinxi
+.nitro
+.tanstack
+.wrangler
+.git
+.github
+.lovable
+.env
+*.log
+docs
+Dockerfile
+docker-compose*.yml
