@@ -51,6 +51,11 @@ function normalizeStatus(v: unknown): StatusTransacao {
     recusada: "recusada",
     expirada: "expirada",
     cancelada: "cancelada",
+    // Formato atual da TransacaoResponse (sem sufixo "a")
+    pendente: "aguardando_pagamento",
+    aprovado: "aprovada",
+    recusado: "recusada",
+    expirado: "expirada",
   };
   return map[s] ?? "criada";
 }
