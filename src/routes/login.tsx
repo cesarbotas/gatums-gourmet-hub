@@ -23,9 +23,9 @@ function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
+      const u = await login(email, password);
       toast.success("Bem-vindo de volta!");
-      router.navigate({ to: "/minha-conta" });
+      router.navigate({ to: u.role === "admin" ? "/admin" : "/minha-conta" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao entrar");
     } finally {
@@ -77,10 +77,6 @@ function LoginPage() {
             </Link>
           </p>
 
-          <div className="mt-6 rounded-lg border border-dashed border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-            <strong className="text-foreground">Demo:</strong> admin@gatums.com / admin123 ·
-            cliente@gatums.com / cliente123
-          </div>
         </div>
       </main>
     </div>

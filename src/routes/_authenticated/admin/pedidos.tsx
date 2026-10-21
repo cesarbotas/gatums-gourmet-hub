@@ -41,7 +41,7 @@ function AdminPedidosPage() {
   const [loading, setLoading] = useState<string | null>(null);
 
   const reload = useCallback(() => {
-    setPedidos(pedidosService.listAll());
+    pedidosService.listAll().then(setPedidos).catch(() => setPedidos([]));
   }, []);
 
   useEffect(reload, [reload]);

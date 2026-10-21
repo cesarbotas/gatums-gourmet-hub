@@ -6,3 +6,4 @@ export * from "./vendas";
 export * from "./pedidos";
 export * from "./pagamentos";
 export * from "./carrinho";
+export * from "./enderecos";

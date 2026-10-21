@@ -41,10 +41,24 @@ export async function apiRequest<T>(
   const data = (await res.json().catch(() => ({}))) as T & {
     message?: string;
     code?: string;
+    // ProblemDetails (RFC 7807/9807) retornado pela API em erros
+    title?: string;
+    detail?: string;
   };
 
   if (!res.ok) {
-    throw new ApiError(data.message ?? "Erro na requisição", res.status, data.code);
+    if (res.status === 401 && typeof window !== "undefined") {
+      // Sessão expirada (JWT 8h) — limpa e manda para o login
+      window.localStorage.removeItem("gg.session");
+      if (!window.location.pathname.startsWith("/login")) {
+        window.location.assign("/login");
+      }
+    }
+    throw new ApiError(
+      data.detail ?? data.message ?? data.title ?? "Erro na requisição",
+      res.status,
+      data.code,
+    );
   }
 
   return data;

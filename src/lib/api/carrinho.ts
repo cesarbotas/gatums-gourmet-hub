@@ -86,12 +86,14 @@ export const cartService = {
   },
 
   async checkout(_userId: string, clienteNome: string): Promise<Pedido> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = await apiRequest<any>("/pedidos/checkout", {
+    // A API retorna 201 { pedidoId } — buscamos o pedido completo em seguida.
+    const raw = await apiRequest<{ pedidoId: string }>("/pedidos/checkout", {
       method: "POST",
       json: { clienteNome },
     });
-    return raw as Pedido;
+    const pedido = await pedidosService.getById(raw.pedidoId);
+    if (!pedido) throw new Error("Pedido criado, mas não foi possível carregá-lo.");
+    return pedido;
   },
 
   pedidosByUser(_userId: string): Pedido[] {

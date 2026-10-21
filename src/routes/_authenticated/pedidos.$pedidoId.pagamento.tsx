@@ -21,12 +21,13 @@ function PagamentoPedidoPage() {
   const [pedido, setPedido] = useState<Pedido | null>(null);
 
   useEffect(() => {
-    const p = pedidosService.getById(pedidoId);
-    if (!p || !user || p.userId !== user.id) {
-      setPedido(null);
-      return;
-    }
-    setPedido(p);
+    pedidosService.getById(pedidoId).then((p) => {
+      if (!p || !user || p.userId !== user.id) {
+        setPedido(null);
+        return;
+      }
+      setPedido(p);
+    }).catch(() => setPedido(null));
   }, [pedidoId, user]);
 
   if (isAdmin) {

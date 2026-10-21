@@ -40,13 +40,12 @@ export const authService = {
     password: string;
     telefone?: string;
   }): Promise<Session> {
-    const res = await apiRequest<LoginResponse>("/auth/register", {
+    // A API retorna 201 com o usuário criado, SEM token — é preciso logar em seguida.
+    await apiRequest("/auth/register", {
       method: "POST",
       json: { nome: input.nome, email: input.email, senha: input.password, telefone: input.telefone },
     });
-    const session: Session = { token: res.token, user: res.user };
-    writeStore(SESSION_KEY, session);
-    return session;
+    return authService.login(input.email, input.password);
   },
 
   async logout(): Promise<void> {
