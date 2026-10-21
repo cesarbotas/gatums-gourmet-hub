@@ -56,7 +56,12 @@ function AdminClientesPage() {
         cli = await clientesService.update(editing.id, payload);
         toast.success("Cliente atualizado");
       } else {
-        cli = await clientesService.create(payload);
+        // A API exige endereço completo no cadastro do cliente
+        if (!endereco.cep || !endereco.logradouro || !endereco.numero || !endereco.bairro || !endereco.cidade || !endereco.uf) {
+          toast.error("Preencha o endereço completo (use a busca por CEP)");
+          return;
+        }
+        cli = await clientesService.create({ ...payload, endereco });
         toast.success("Cliente criado");
       }
       if (endereco.cep && endereco.logradouro) {
