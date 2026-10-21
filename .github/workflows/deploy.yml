@@ -13,8 +13,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '22'
+      # O npm 10.8/10.9 que acompanha o Node no runner tem um bug no resolver
+      # (Arborist) que quebra `npm ci` com "Cannot read properties of null
+      # (reading 'edgesOut')" em árvores com peerDeps (@cloudflare/vite-plugin,
+      # wrangler). npm 11+ corrige. Fixar a versão também evita cache corrompido.
+      - run: npm install -g npm@11
       - run: npm ci
       - run: npm run build
         env:

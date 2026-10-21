@@ -1,10 +1,14 @@
 # ---- build ----
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 
 # A base da API entra no bundle do cliente em build time (Vite inlines VITE_*).
 ARG VITE_API_BASE_URL=https://gatumsgourmet.com.br/api/v1
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
+# npm 11 evita o bug do resolver (edgesOut) das versões 10.8/10.9 em árvores
+# com peerDeps (@cloudflare/vite-plugin, wrangler).
+RUN npm install -g npm@11
 
 # Instala dependências (inclui devDeps: vite/tanstack são necessários no build).
 COPY package*.json ./
@@ -19,7 +23,7 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 # ---- runtime ----
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
