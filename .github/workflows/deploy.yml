@@ -46,6 +46,17 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          # Keepalive para builds longos na VPS (npm ci + docker build demoram):
+          # sem tráfego, a sessão SSH ociosa cai com "Broken pipe" (exit 255).
+          # ServerAliveInterval manda pacotes a cada 30s; CountMax tolera ~1h.
+          cat >> ~/.ssh/config <<'EOF'
+          Host *
+            ServerAliveInterval 30
+            ServerAliveCountMax 120
+            ConnectTimeout 30
+            TCPKeepAlive yes
+          EOF
+          chmod 600 ~/.ssh/config
 
       - name: Ensure deploy dir
         run: ssh $VPS_USER@$VPS_HOST "mkdir -p $VPS_DEPLOY_PATH"
@@ -68,11 +79,40 @@ jobs:
           rm /tmp/.env
 
       - name: Deploy on VPS
-        run: ssh $VPS_USER@$VPS_HOST "cd $VPS_DEPLOY_PATH && bash deploy/deploy-site.sh"
+        timeout-minutes: 30
+        run: |
+          set -euo pipefail
+          # Dispara o deploy em background na VPS (setsid), gravando saída em
+          # deploy.log e o código de saída em deploy.status. Assim, se o SSH
+          # cair durante o build demorado, o processo na VPS NÃO morre junto.
+          ssh "$VPS_USER@$VPS_HOST" "
+            cd '$VPS_DEPLOY_PATH' &&
+            rm -f deploy.log deploy.status &&
+            setsid bash -c 'bash deploy/deploy-site.sh > deploy.log 2>&1; echo \$? > deploy.status' </dev/null >/dev/null 2>&1 &
+            echo 'Deploy disparado em background na VPS.'
+          "
+
+          # Polling: imprime as linhas novas do log e encerra quando houver status.
+          PRINTED=0
+          for _ in $(seq 1 120); do
+            CHUNK=$(ssh "$VPS_USER@$VPS_HOST" "tail -n +$((PRINTED+1)) '$VPS_DEPLOY_PATH/deploy.log' 2>/dev/null" || true)
+            if [ -n "$CHUNK" ]; then
+              echo "$CHUNK"
+              PRINTED=$((PRINTED + $(printf '%s\n' "$CHUNK" | wc -l)))
+            fi
+            CODE=$(ssh "$VPS_USER@$VPS_HOST" "cat '$VPS_DEPLOY_PATH/deploy.status' 2>/dev/null" || true)
+            if [ -n "$CODE" ]; then
+              echo "=== deploy-site.sh terminou com código: $CODE ==="
+              [ "$CODE" = "0" ] && exit 0 || exit 1
+            fi
+            sleep 10
+          done
+          echo "::error::Timeout aguardando o deploy na VPS."
+          exit 1
 
       - name: Health check
         run: |
-          sleep 10
+          sleep 5
           for i in 1 2 3 4 5; do
             STATUS=$(curl -s -o /dev/null -w '%{http_code}' https://app.gatumsgourmet.com.br/ || echo "000")
             echo "Tentativa $i — HTTP $STATUS"
@@ -80,4 +120,4 @@ jobs:
             sleep 8
           done
           echo "::warning::Site não respondeu 200. Logs:"
-          ssh $VPS_USER@$VPS_HOST "docker logs gatums-site --tail 30"
+          ssh $VPS_USER@$VPS_HOST "docker logs gatums-site --tail 30" || true
