@@ -1,0 +1,79 @@
+name: CI/CD — Build & Deploy Site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'https://gatumsgourmet.com.br/api/v1' }}
+
+  deploy:
+    name: Deploy to Locaweb
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_DEPLOY_PATH: ${{ secrets.VPS_SITE_DEPLOY_PATH || '/opt/gatums-site' }}
+      VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'https://gatumsgourmet.com.br/api/v1' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Add VPS to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Ensure deploy dir
+        run: ssh $VPS_USER@$VPS_HOST "mkdir -p $VPS_DEPLOY_PATH"
+
+      - name: Sync files to VPS
+        run: |
+          rsync -avz --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'node_modules' \
+            --exclude 'dist' \
+            --exclude '.env' \
+            './' $VPS_USER@$VPS_HOST:$VPS_DEPLOY_PATH/
+
+      - name: Create .env on VPS from Secrets
+        run: |
+          printf 'VITE_API_BASE_URL=%s\n' "$VITE_API_BASE_URL" > /tmp/.env
+          scp /tmp/.env $VPS_USER@$VPS_HOST:$VPS_DEPLOY_PATH/.env
+          ssh $VPS_USER@$VPS_HOST "chmod 600 $VPS_DEPLOY_PATH/.env"
+          rm /tmp/.env
+
+      - name: Deploy on VPS
+        run: ssh $VPS_USER@$VPS_HOST "cd $VPS_DEPLOY_PATH && bash deploy/deploy-site.sh"
+
+      - name: Health check
+        run: |
+          sleep 10
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s -o /dev/null -w '%{http_code}' https://app.gatumsgourmet.com.br/ || echo "000")
+            echo "Tentativa $i — HTTP $STATUS"
+            [ "$STATUS" = "200" ] && echo "Site no ar!" && exit 0
+            sleep 8
+          done
+          echo "::warning::Site não respondeu 200. Logs:"
+          ssh $VPS_USER@$VPS_HOST "docker logs gatums-site --tail 30"

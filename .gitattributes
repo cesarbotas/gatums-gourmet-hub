@@ -1,0 +1,5 @@
+# Garante LF em scripts executados em Linux/containers (evita quebra de shebang na VPS).
+*.sh    text eol=lf
+*.mjs   text eol=lf
+Dockerfile text eol=lf
+*.yml   text eol=lf
