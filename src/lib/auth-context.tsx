@@ -6,7 +6,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isAdmin: boolean;
   ready: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   register: (input: { nome: string; email: string; password: string; telefone?: string }) => Promise<void>;
   logout: () => void;
 }
@@ -26,6 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const s = await authService.login(email, password);
     setUser(s.user);
+    return s.user;
   }, []);
 
   const register = useCallback(
