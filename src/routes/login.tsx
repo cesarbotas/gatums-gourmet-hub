@@ -77,10 +77,6 @@ function LoginPage() {
             </Link>
           </p>
 
-          <div className="mt-6 rounded-lg border border-dashed border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-            <strong className="text-foreground">Demo:</strong> admin@gatums.com / admin123 ·
-            cliente@gatums.com / cliente123
-          </div>
         </div>
       </main>
     </div>
