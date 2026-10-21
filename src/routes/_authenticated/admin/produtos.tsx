@@ -17,7 +17,6 @@ import {
 import {
   produtosService,
   PAGE_SIZE_OPTIONS,
-  CATEGORIAS,
   type Produto,
   type TipoProduto,
   type ItemCombo,
@@ -32,7 +31,7 @@ export const Route = createFileRoute("/_authenticated/admin/produtos")({
 const empty: Omit<Produto, "id" | "criadoEm"> = {
   nome: "",
   descricao: "",
-  categoria: "Geleias",
+  categoria: "",
   preco: 0,
   foto: "",
   disponivel: true,
@@ -50,7 +49,12 @@ function AdminProdutosPage() {
   const [editing, setEditing] = useState<Produto | null>(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [categorias, setCategorias] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    produtosService.categorias().then(setCategorias);
+  }, []);
 
   const load = () => {
     produtosService.list({ page, pageSize }).then((r) => {
@@ -275,7 +279,7 @@ function AdminProdutosPage() {
             >
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
-                {CATEGORIAS.map((c) => (
+                {categorias.map((c) => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
               </SelectContent>

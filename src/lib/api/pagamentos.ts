@@ -10,7 +10,85 @@ import { apiRequest, ApiError } from "./client";
 
 const TRANSACOES_KEY = "gg.pagamentos.transacoes";
 const MOCK_MODE =
-  (import.meta.env.VITE_PAYMENTS_MOCK as string | undefined) !== "false";
+  (import.meta.env.VITE_PAYMENTS_MOCK as string | undefined) === "true";
+
+const METODO_FROM_INT: Record<number, MetodoPagamento> = {
+  0: "cartao_debito",
+  1: "cartao_credito",
+  2: "pix",
+};
+
+const STATUS_FROM_INT: Record<number, StatusTransacao> = {
+  0: "criada",
+  1: "aguardando_pagamento",
+  2: "processando",
+  3: "aprovada",
+  4: "recusada",
+  5: "expirada",
+  6: "cancelada",
+};
+
+/**
+ * A API representa `metodo` de 3 formas (ver Postman — "Inconsistência de formato"):
+ * inteiro (enum), "cartao_credito" (opcoes) e "cartaocredito" (TransacaoResponse).
+ */
+function normalizeMetodo(v: unknown): MetodoPagamento {
+  if (typeof v === "number") return METODO_FROM_INT[v] ?? "pix";
+  const s = String(v ?? "").toLowerCase().replace(/[_\s-]/g, "");
+  if (s === "cartaodebito") return "cartao_debito";
+  if (s === "cartaocredito") return "cartao_credito";
+  return "pix";
+}
+
+function normalizeStatus(v: unknown): StatusTransacao {
+  if (typeof v === "number") return STATUS_FROM_INT[v] ?? "criada";
+  const s = String(v ?? "").toLowerCase().replace(/[_\s-]/g, "");
+  const map: Record<string, StatusTransacao> = {
+    criada: "criada",
+    aguardandopagamento: "aguardando_pagamento",
+    processando: "processando",
+    aprovada: "aprovada",
+    recusada: "recusada",
+    expirada: "expirada",
+    cancelada: "cancelada",
+    // Formato atual da TransacaoResponse (sem sufixo "a")
+    pendente: "aguardando_pagamento",
+    aprovado: "aprovada",
+    recusado: "recusada",
+    expirado: "expirada",
+  };
+  return map[s] ?? "criada";
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapTransacao(raw: any): TransacaoPagamento {
+  const t: TransacaoPagamento = {
+    id: raw.id,
+    pedidoId: raw.pedidoId,
+    metodo: normalizeMetodo(raw.metodo),
+    valor: raw.valor ?? 0,
+    status: normalizeStatus(raw.status),
+    criadoEm: raw.criadoEm ?? new Date().toISOString(),
+    atualizadoEm: raw.atualizadoEm ?? raw.criadoEm ?? new Date().toISOString(),
+    operadora: raw.operadora ?? "",
+    operadoraRef: raw.operadoraRef,
+    pixCopiaCola: raw.pixCopiaCola,
+    pixQrCodeDataUrl: raw.pixQrCodeDataUrl,
+    pixExpiraEm: raw.pixExpiraEm,
+    cartaoUltimos4: raw.cartaoUltimos4,
+    cartaoBandeira: raw.cartaoBandeira,
+    mensagemErro: raw.mensagemErro,
+  };
+  if (t.metodo === "pix" && t.pixCopiaCola && !t.pixQrCodeDataUrl) {
+    // QR gerado client-side se a API não devolver
+    gerarQrPix(t.pixCopiaCola).then((url) => {
+      t.pixQrCodeDataUrl = url;
+      upsertTransacao(t);
+    });
+  }
+  if (t.id) upsertTransacao(t);
+  return t;
+}
 
 export type MetodoPagamento = "cartao_debito" | "cartao_credito" | "pix";
 
@@ -314,10 +392,33 @@ export const pagamentosService = {
     return OPCOES_PAGAMENTO;
   },
 
+  async listarOpcoesRemoto(): Promise<OpcaoPagamento[]> {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res = await apiRequest<any>("/pagamentos/opcoes");
+      const items = Array.isArray(res) ? res : res.items ?? [];
+      if (!items.length) return OPCOES_PAGAMENTO;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return items.map((o: any) => ({
+        id: normalizeMetodo(o.id ?? o.metodo),
+        label: o.label ?? o.nome ?? "",
+        descricao: o.descricao ?? "",
+      }));
+    } catch {
+      return OPCOES_PAGAMENTO;
+    }
+  },
+
   async iniciar(pedidoId: string, metodo: MetodoPagamento, valor: number): Promise<TransacaoPagamento> {
     const body = { pedidoId, metodo: METODO_TO_INT[metodo], valor };
     if (MOCK_MODE) return mockIniciar({ pedidoId, metodo, valor });
-    return apiRequest<TransacaoPagamento>("/pagamentos/iniciar", { method: "POST", json: body });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = await apiRequest<any>("/pagamentos/iniciar", {
+      method: "POST",
+      json: body,
+      headers: { "Idempotency-Key": `${pedidoId}-${metodo}-${Date.now()}` },
+    });
+    return mapTransacao(raw);
   },
 
   async processarCartao(
@@ -325,22 +426,30 @@ export const pagamentosService = {
     dados: { numero: string; nome: string; validade: string; cvv: string },
   ): Promise<TransacaoPagamento> {
     if (MOCK_MODE) return mockProcessarCartao(transacaoId, dados);
-    return apiRequest<TransacaoPagamento>(`/pagamentos/${transacaoId}/cartao`, { method: "POST", json: dados });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = await apiRequest<any>(`/pagamentos/${transacaoId}/cartao`, { method: "POST", json: dados });
+    return mapTransacao(raw);
   },
 
   async consultarStatus(transacaoId: string): Promise<TransacaoPagamento> {
     if (MOCK_MODE) return mockConsultarStatus(transacaoId);
-    return apiRequest<TransacaoPagamento>(`/pagamentos/${transacaoId}/status`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = await apiRequest<any>(`/pagamentos/${transacaoId}/status`);
+    return mapTransacao(raw);
   },
 
   async confirmarPix(transacaoId: string): Promise<TransacaoPagamento> {
     if (MOCK_MODE) return mockConfirmarPixCliente(transacaoId);
-    return apiRequest<TransacaoPagamento>(`/pagamentos/${transacaoId}/pix/confirmar`, { method: "POST" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = await apiRequest<any>(`/pagamentos/${transacaoId}/pix/confirmar`, { method: "POST" });
+    return mapTransacao(raw);
   },
 
   async validarParaAprovacao(transacaoId: string): Promise<TransacaoPagamento> {
     if (MOCK_MODE) return mockValidarAdmin(transacaoId);
-    return apiRequest<TransacaoPagamento>(`/pagamentos/${transacaoId}/validar`, { method: "POST" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = await apiRequest<any>(`/pagamentos/${transacaoId}/validar`, { method: "POST" });
+    return mapTransacao(raw);
   },
 
   getLocal(transacaoId: string): TransacaoPagamento | null {

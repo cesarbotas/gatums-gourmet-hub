@@ -17,13 +17,14 @@ interface CartContextValue {
 const CartContext = createContext<CartContextValue | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isAdmin } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
 
   useEffect(() => {
-    if (!isAuthenticated) { setItems([]); return; }
+    // Admin não usa carrinho — a API responde 403 para esse papel.
+    if (!isAuthenticated || isAdmin) { setItems([]); return; }
     cartService.getRemote().then(setItems).catch(() => setItems([]));
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isAdmin]);
 
   const add = useCallback(
     (p: Produto, qtd = 1) => {

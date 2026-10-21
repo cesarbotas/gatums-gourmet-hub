@@ -41,8 +41,44 @@ const ETAPA_TO_INT: Record<PedidoEtapa, number> = {
 
 const ENTREGA_TO_INT: Record<EntregaTipo, number> = { transporte: 0, retirada: 1 };
 
+/** A API devolve etapas como string lowercase sem underscore ("pagamentoaprovado"). */
+function normalizeEtapa(v: unknown): PedidoEtapa {
+  const s = String(v ?? "").toLowerCase().replace(/[_\s-]/g, "");
+  const map: Record<string, PedidoEtapa> = {
+    criado: "criado",
+    aprovado: "aprovado",
+    pagamento: "pagamento",
+    pagamentoaprovado: "pagamento_aprovado",
+    enviopendente: "envio_pendente",
+    entregue: "entregue",
+    finalizado: "finalizado",
+  };
+  return map[s] ?? "criado";
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapPedido(raw: any): Pedido {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let timeline: PedidoEvento[] = (raw.timeline ?? []).map((e: any) => ({
+    etapa: normalizeEtapa(e.etapa),
+    em: e.em ?? raw.criadoEm ?? new Date().toISOString(),
+    por: (e.por === "admin" ? "admin" : "cliente") as PedidoActor,
+    observacao: e.observacao ?? undefined,
+    entregaTipo: e.entregaTipo ?? undefined,
+  }));
+  if (timeline.length === 0) {
+    timeline = [{
+      etapa: normalizeEtapa(raw.statusAtual ?? ETAPAS_ORDEM[raw.etapa ?? 0]),
+      em: raw.criadoEm ?? raw.data ?? new Date().toISOString(),
+      por: "cliente" as PedidoActor,
+    }];
+  } else if (raw.statusAtual) {
+    // Garante que a etapa atual conste na timeline mesmo se a API não a incluir
+    const atual = normalizeEtapa(raw.statusAtual);
+    if (timeline[timeline.length - 1].etapa !== atual) {
+      timeline = [...timeline, { etapa: atual, em: raw.data ?? new Date().toISOString(), por: "admin" as PedidoActor }];
+    }
+  }
   return {
     id: raw.id,
     userId: raw.userId ?? raw.clienteId ?? "",
@@ -50,8 +86,8 @@ function mapPedido(raw: any): Pedido {
     itens: raw.itens ?? [],
     total: raw.total ?? 0,
     data: raw.data ?? raw.criadoEm ?? new Date().toISOString(),
-    timeline: raw.timeline ?? [{ etapa: ETAPAS_ORDEM[raw.etapa ?? 0], em: raw.criadoEm ?? new Date().toISOString(), por: "cliente" as PedidoActor }],
-    pagamento: raw.pagamento,
+    timeline,
+    pagamento: raw.pagamento ?? undefined,
   };
 }
 
