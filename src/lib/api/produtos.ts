@@ -77,7 +77,8 @@ export const produtosService = {
     });
     if (params.search) qs.set("search", params.search);
     if (params.categoria && params.categoria !== "Todas") qs.set("categoria", params.categoria);
-    if (params.tipo && params.tipo !== "todos") qs.set("tipo", String(fromTipo(params.tipo as TipoProduto)));
+    // Query params aceitam o nome do enum (case-insensitive), ex.: ?tipo=simples
+    if (params.tipo && params.tipo !== "todos") qs.set("tipo", params.tipo);
     if (typeof params.disponivel === "boolean") qs.set("disponivel", String(params.disponivel));
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

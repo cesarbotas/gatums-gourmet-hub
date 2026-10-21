@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { produtosService, CATEGORIAS, type Produto } from "@/lib/api";
+import { produtosService, type Produto } from "@/lib/api";
 import { resolveComboItens } from "@/lib/combo-display";
 import { ComboItensList } from "@/components/ComboItensList";
 import { useAuth } from "@/lib/auth-context";
@@ -36,6 +36,7 @@ type Ordem = "nome" | "preco-asc" | "preco-desc";
 
 function CatalogoPage() {
   const [items, setItems] = useState<Produto[]>([]);
+  const [categorias, setCategorias] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [categoria, setCategoria] = useState<string>("Todas");
   const [tipo, setTipo] = useState<"todos" | "simples" | "combo">("todos");
@@ -49,6 +50,7 @@ function CatalogoPage() {
 
   useEffect(() => {
     produtosService.list({ pageSize: 500 }).then((r) => setItems(r.items));
+    produtosService.categorias().then(setCategorias);
   }, []);
 
   const precoMaximo = useMemo(
@@ -126,7 +128,7 @@ function CatalogoPage() {
                   <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Todas">Todas as categorias</SelectItem>
-                    {CATEGORIAS.map((c) => (
+                    {categorias.map((c) => (
                       <SelectItem key={c} value={c}>{c}</SelectItem>
                     ))}
                   </SelectContent>
