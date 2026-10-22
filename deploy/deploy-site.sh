@@ -9,17 +9,21 @@ echo "=========================================="
 echo "  Gatums Gourmet — Deploy SITE (Node SSR)"
 echo "=========================================="
 
-echo -e "${YELLOW}[1/4] Verificando .env...${NC}"
+echo -e "${YELLOW}[1/4] Verificando pré-requisitos...${NC}"
 if [ ! -f "${DEPLOY_PATH}/.env" ]; then
     echo -e "${RED}.env não encontrado em ${DEPLOY_PATH}!${NC}"; exit 1
 fi
-echo -e "${GREEN}.env OK${NC}"
+# A imagem é construída no CI e carregada via `docker load`. A VPS não builda.
+if ! docker image inspect gatums-site:latest >/dev/null 2>&1; then
+    echo -e "${RED}Imagem gatums-site:latest não encontrada. O CI deve carregá-la (docker load) antes.${NC}"; exit 1
+fi
+echo -e "${GREEN}.env e imagem OK${NC}"
 
 echo -e "${YELLOW}[2/4] Parando container antigo...${NC}"
 docker compose -f "${DEPLOY_PATH}/docker-compose.production.yml" --env-file "${DEPLOY_PATH}/.env" down 2>/dev/null || true
 
-echo -e "${YELLOW}[3/4] Build + up...${NC}"
-docker compose -f "${DEPLOY_PATH}/docker-compose.production.yml" --env-file "${DEPLOY_PATH}/.env" up -d --build
+echo -e "${YELLOW}[3/4] Subindo container (sem build — imagem pré-carregada)...${NC}"
+docker compose -f "${DEPLOY_PATH}/docker-compose.production.yml" --env-file "${DEPLOY_PATH}/.env" up -d
 
 echo -e "${YELLOW}[4/4] Health check...${NC}"
 sleep 8
