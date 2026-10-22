@@ -1,5 +1,5 @@
 import { apiRequest } from "./client";
-import type { PaginatedResponse } from "./config";
+import { appendPageParams, mapPaginated, type PaginatedResponse } from "./config";
 
 export interface Categoria {
   id: number;
@@ -27,32 +27,15 @@ export const categoriasService = {
       search?: string;
     } = {},
   ): Promise<PaginatedResponse<Categoria>> {
-    const page = params.page ?? 1;
-    const pageSize = params.pageSize ?? 10;
     const qs = new URLSearchParams();
-    if (typeof params.apenasAtivas === "boolean") qs.set("apenasAtivas", String(params.apenasAtivas));
+    const { page, pageSize } = appendPageParams(qs, params);
+    if (typeof params.apenasAtivas === "boolean")
+      qs.set("apenasAtivas", String(params.apenasAtivas));
+    if (params.search) qs.set("search", params.search);
 
-    const query = qs.toString();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res = await apiRequest<any[]>(`/categorias${query ? `?${query}` : ""}`);
-    let items = (res ?? []).map(mapCategoria);
-
-    if (params.search) {
-      const term = params.search.toLowerCase();
-      items = items.filter((c) => c.nome.toLowerCase().includes(term));
-    }
-
-    const total = items.length;
-    // TODO[API-pagination]: quando /categorias aceitar page/pageSize, trocar o fatiamento local por query server-side e repassar o PaginatedResponse da API.
-    const start = (page - 1) * pageSize;
-    const paged = items.slice(start, start + pageSize);
-
-    return {
-      items: paged,
-      total,
-      page,
-      pageSize,
-    };
+    const res = await apiRequest<any>(`/categorias?${qs}`);
+    return mapPaginated(res, (raw) => mapCategoria(raw), { page, pageSize });
   },
 
   async getById(id: number): Promise<Categoria | null> {
@@ -65,7 +48,11 @@ export const categoriasService = {
     }
   },
 
-  async create(input: { nome: string; descricao?: string | null; ativo?: boolean }): Promise<{ id: number }> {
+  async create(input: {
+    nome: string;
+    descricao?: string | null;
+    ativo?: boolean;
+  }): Promise<{ id: number }> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw = await apiRequest<any>("/categorias", {
       method: "POST",
