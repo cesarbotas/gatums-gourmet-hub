@@ -7,22 +7,31 @@ on:
 
 jobs:
   build:
-    name: Build
+    name: Build image
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      # O npm 10.8/10.9 que acompanha o Node no runner tem um bug no resolver
-      # (Arborist) que quebra `npm ci` com "Cannot read properties of null
-      # (reading 'edgesOut')" em árvores com peerDeps (@cloudflare/vite-plugin,
-      # wrangler). npm 11+ corrige. Fixar a versão também evita cache corrompido.
-      - run: npm install -g npm@11
-      - run: npm ci
-      - run: npm run build
+
+      # Builda a imagem Docker NO RUNNER (16GB RAM). A VPS de 512MB não aguenta
+      # o `vite build` SSR (estoura o heap do Node). A VPS só roda a imagem.
+      - name: Build Docker image
+        run: |
+          docker build \
+            --build-arg VITE_API_BASE_URL="${VITE_API_BASE_URL}" \
+            -t gatums-site:latest .
         env:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'https://gatumsgourmet.com.br/api/v1' }}
+
+      # Salva a imagem como tar comprimido para enviar à VPS.
+      - name: Save image to tarball
+        run: docker save gatums-site:latest | gzip > gatums-site.tar.gz
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gatums-site-image
+          path: gatums-site.tar.gz
+          retention-days: 1
 
   deploy:
     name: Deploy to Locaweb
@@ -37,6 +46,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gatums-site-image
+
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1
         with:
@@ -46,19 +60,37 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          # Keepalive: o envio/carga da imagem pode demorar; sem tráfego a sessão
+          # SSH ociosa cai com "Broken pipe" (exit 255).
+          cat >> ~/.ssh/config <<'EOF'
+          Host *
+            ServerAliveInterval 30
+            ServerAliveCountMax 120
+            ConnectTimeout 30
+            TCPKeepAlive yes
+          EOF
+          chmod 600 ~/.ssh/config
 
       - name: Ensure deploy dir
         run: ssh $VPS_USER@$VPS_HOST "mkdir -p $VPS_DEPLOY_PATH"
 
-      - name: Sync files to VPS
+      # Envia apenas os arquivos de orquestração (compose + script). Sem código
+      # fonte nem node_modules: a VPS não builda.
+      - name: Sync deploy files to VPS
         run: |
-          rsync -avz --delete \
-            --exclude '.git' \
-            --exclude '.github' \
-            --exclude 'node_modules' \
-            --exclude 'dist' \
-            --exclude '.env' \
-            './' $VPS_USER@$VPS_HOST:$VPS_DEPLOY_PATH/
+          rsync -avz \
+            docker-compose.production.yml \
+            deploy/ \
+            $VPS_USER@$VPS_HOST:$VPS_DEPLOY_PATH/deploy-tmp/
+          ssh $VPS_USER@$VPS_HOST "
+            cp $VPS_DEPLOY_PATH/deploy-tmp/docker-compose.production.yml $VPS_DEPLOY_PATH/ &&
+            mkdir -p $VPS_DEPLOY_PATH/deploy &&
+            cp $VPS_DEPLOY_PATH/deploy-tmp/*.sh $VPS_DEPLOY_PATH/deploy/ &&
+            rm -rf $VPS_DEPLOY_PATH/deploy-tmp
+          "
+
+      - name: Upload image to VPS
+        run: scp gatums-site.tar.gz $VPS_USER@$VPS_HOST:$VPS_DEPLOY_PATH/gatums-site.tar.gz
 
       - name: Create .env on VPS from Secrets
         run: |
@@ -67,12 +99,24 @@ jobs:
           ssh $VPS_USER@$VPS_HOST "chmod 600 $VPS_DEPLOY_PATH/.env"
           rm /tmp/.env
 
-      - name: Deploy on VPS
-        run: ssh $VPS_USER@$VPS_HOST "cd $VPS_DEPLOY_PATH && bash deploy/deploy-site.sh"
+      - name: Load image and deploy on VPS
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          ssh "$VPS_USER@$VPS_HOST" "
+            set -e
+            cd '$VPS_DEPLOY_PATH'
+            echo '--- Carregando imagem (docker load) ---'
+            gunzip -c gatums-site.tar.gz | docker load
+            rm -f gatums-site.tar.gz
+            echo '--- Subindo container ---'
+            bash deploy/deploy-site.sh
+            docker image prune -f >/dev/null 2>&1 || true
+          "
 
       - name: Health check
         run: |
-          sleep 10
+          sleep 5
           for i in 1 2 3 4 5; do
             STATUS=$(curl -s -o /dev/null -w '%{http_code}' https://app.gatumsgourmet.com.br/ || echo "000")
             echo "Tentativa $i — HTTP $STATUS"
@@ -80,4 +124,4 @@ jobs:
             sleep 8
           done
           echo "::warning::Site não respondeu 200. Logs:"
-          ssh $VPS_USER@$VPS_HOST "docker logs gatums-site --tail 30"
+          ssh $VPS_USER@$VPS_HOST "docker logs gatums-site --tail 30" || true

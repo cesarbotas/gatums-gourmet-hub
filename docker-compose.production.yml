@@ -1,12 +1,9 @@
-# Uso na VPS: docker compose -f docker-compose.production.yml --env-file .env up -d --build
+# A imagem é buildada no GitHub Actions e carregada na VPS via `docker load`
+# (a VPS de 512MB NÃO builda: o Vite/SSR estoura o heap ao buildar aqui).
+# Uso na VPS: docker compose -f docker-compose.production.yml --env-file .env up -d
 services:
   gatums-site:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        # Base da API embutida no bundle do cliente em build time.
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    image: gatums-site:latest
     container_name: gatums-site
     restart: always
     environment:
@@ -20,7 +17,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          # Runtime SSR medido em ~48MB sob carga; 192M dá folga e preserva
+          # RAM da VPS (512MB total, compartilhada com API + Nginx).
+          memory: 192M
     networks:
       - gatums-site-net
 
