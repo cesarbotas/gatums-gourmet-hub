@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { produtosService, type Produto } from "@/lib/api";
+import { produtosService, categoriasService, type Produto, type Categoria } from "@/lib/api";
 import { resolveComboItens } from "@/lib/combo-display";
 import { ComboItensList } from "@/components/ComboItensList";
 import { useAuth } from "@/lib/auth-context";
@@ -36,9 +36,9 @@ type Ordem = "nome" | "preco-asc" | "preco-desc";
 
 function CatalogoPage() {
   const [items, setItems] = useState<Produto[]>([]);
-  const [categorias, setCategorias] = useState<string[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [search, setSearch] = useState("");
-  const [categoria, setCategoria] = useState<string>("Todas");
+  const [categoriaId, setCategoriaId] = useState<string>("todas");
   const [tipo, setTipo] = useState<"todos" | "simples" | "combo">("todos");
   const [ordem, setOrdem] = useState<Ordem>("nome");
   const [soDisponiveis, setSoDisponiveis] = useState(true);
@@ -50,7 +50,9 @@ function CatalogoPage() {
 
   useEffect(() => {
     produtosService.list({ pageSize: 500 }).then((r) => setItems(r.items));
-    produtosService.categorias().then(setCategorias);
+    categoriasService
+      .list({ apenasAtivas: true, pageSize: 500 })
+      .then((r) => setCategorias(r.items));
   }, []);
 
   const precoMaximo = useMemo(
@@ -61,11 +63,19 @@ function CatalogoPage() {
   const visiveis = useMemo(() => {
     const s = search.toLowerCase().trim();
     let list = items.filter((p) => {
-      if (categoria !== "Todas" && p.categoria !== categoria) return false;
+      if (categoriaId !== "todas" && String(p.categoriaId) !== categoriaId) return false;
       if (tipo !== "todos" && p.tipo !== tipo) return false;
       if (soDisponiveis && !p.disponivel) return false;
       if (maxPreco !== null && p.preco > maxPreco) return false;
-      if (s && !(p.nome.toLowerCase().includes(s) || p.descricao.toLowerCase().includes(s) || p.categoria.toLowerCase().includes(s))) return false;
+      if (
+        s &&
+        !(
+          p.nome.toLowerCase().includes(s) ||
+          p.descricao.toLowerCase().includes(s) ||
+          p.categoriaNome.toLowerCase().includes(s)
+        )
+      )
+        return false;
       return true;
     });
     list = list.sort((a, b) => {
@@ -74,7 +84,7 @@ function CatalogoPage() {
       return a.nome.localeCompare(b.nome);
     });
     return list;
-  }, [items, search, categoria, tipo, soDisponiveis, maxPreco, ordem]);
+  }, [items, search, categoriaId, tipo, soDisponiveis, maxPreco, ordem]);
 
   const handleAdd = (p: Produto) => {
     if (!isAuthenticated) {
@@ -92,7 +102,7 @@ function CatalogoPage() {
 
   const clearFilters = () => {
     setSearch("");
-    setCategoria("Todas");
+    setCategoriaId("todas");
     setTipo("todos");
     setOrdem("nome");
     setSoDisponiveis(true);
@@ -100,7 +110,7 @@ function CatalogoPage() {
   };
 
   const filtrosAtivos =
-    !!search || categoria !== "Todas" || tipo !== "todos" || !soDisponiveis || maxPreco !== null;
+    !!search || categoriaId !== "todas" || tipo !== "todos" || !soDisponiveis || maxPreco !== null;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -124,19 +134,25 @@ function CatalogoPage() {
                 />
               </div>
               <div className="md:col-span-3">
-                <Select value={categoria} onValueChange={setCategoria}>
-                  <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
+                <Select value={categoriaId} onValueChange={setCategoriaId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Categoria" />
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Todas">Todas as categorias</SelectItem>
+                    <SelectItem value="todas">Todas as categorias</SelectItem>
                     {categorias.map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.nome}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="md:col-span-2">
                 <Select value={tipo} onValueChange={(v) => setTipo(v as typeof tipo)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos os tipos</SelectItem>
                     <SelectItem value="simples">Produtos</SelectItem>
@@ -146,7 +162,9 @@ function CatalogoPage() {
               </div>
               <div className="md:col-span-2">
                 <Select value={ordem} onValueChange={(v) => setOrdem(v as Ordem)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="nome">Nome (A-Z)</SelectItem>
                     <SelectItem value="preco-asc">Menor preço</SelectItem>
@@ -197,7 +215,9 @@ function CatalogoPage() {
         <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
           {visiveis.length === 0 ? (
             <div className="py-16 text-center">
-              <p className="text-muted-foreground">Nenhum produto encontrado com os filtros atuais.</p>
+              <p className="text-muted-foreground">
+                Nenhum produto encontrado com os filtros atuais.
+              </p>
               <Button variant="outline" className="mt-4" onClick={clearFilters}>
                 Limpar filtros
               </Button>
@@ -222,12 +242,16 @@ function CatalogoPage() {
                       </span>
                     )}
                     <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-0.5 text-xs font-medium text-foreground">
-                      {p.tipo === "combo" ? <Boxes className="h-3 w-3" /> : <Package className="h-3 w-3" />}
+                      {p.tipo === "combo" ? (
+                        <Boxes className="h-3 w-3" />
+                      ) : (
+                        <Package className="h-3 w-3" />
+                      )}
                       {p.tipo === "combo" ? "Combo" : "Produto"}
                     </span>
                   </div>
                   <div className="flex flex-1 flex-col p-5">
-                    <p className="text-xs uppercase tracking-wide text-accent">{p.categoria}</p>
+                    <p className="text-xs uppercase tracking-wide text-accent">{p.categoriaNome}</p>
                     <h3 className="mt-1 text-lg font-semibold text-foreground">{p.nome}</h3>
                     <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{p.descricao}</p>
                     {p.tipo === "combo" && (

@@ -1,6 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, X, Upload, Package, Boxes } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Upload,
+  Package,
+  Boxes,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,8 +26,10 @@ import {
 } from "@/components/ui/select";
 import {
   produtosService,
+  categoriasService,
   PAGE_SIZE_OPTIONS,
   type Produto,
+  type Categoria,
   type TipoProduto,
   type ItemCombo,
 } from "@/lib/api";
@@ -31,7 +43,8 @@ export const Route = createFileRoute("/_authenticated/admin/produtos")({
 const empty: Omit<Produto, "id" | "criadoEm"> = {
   nome: "",
   descricao: "",
-  categoria: "",
+  categoriaId: 0,
+  categoriaNome: "",
   preco: 0,
   foto: "",
   disponivel: true,
@@ -49,11 +62,13 @@ function AdminProdutosPage() {
   const [editing, setEditing] = useState<Produto | null>(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
-  const [categorias, setCategorias] = useState<string[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    produtosService.categorias().then(setCategorias);
+    categoriasService
+      .list({ apenasAtivas: true, pageSize: 500 })
+      .then((r) => setCategorias(r.items));
   }, []);
 
   const load = () => {
@@ -99,7 +114,9 @@ function AdminProdutosPage() {
   const setItemQty = (produtoId: string, q: number) =>
     setForm({
       ...form,
-      itens: (form.itens ?? []).map((i) => (i.produtoId === produtoId ? { ...i, quantidade: q } : i)),
+      itens: (form.itens ?? []).map((i) =>
+        i.produtoId === produtoId ? { ...i, quantidade: q } : i,
+      ),
     });
   const removeItem = (produtoId: string) =>
     setForm({ ...form, itens: (form.itens ?? []).filter((i) => i.produtoId !== produtoId) });
@@ -108,6 +125,10 @@ function AdminProdutosPage() {
     e.preventDefault();
     if (form.tipo === "combo" && (form.itens ?? []).length === 0) {
       toast.error("Combo precisa ter ao menos 1 produto.");
+      return;
+    }
+    if (!form.categoriaId) {
+      toast.error("Selecione uma categoria.");
       return;
     }
     setSaving(true);
@@ -185,7 +206,11 @@ function AdminProdutosPage() {
                   </td>
                   <td className="px-4 py-3 align-top">
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                      {p.tipo === "combo" ? <Boxes className="h-3.5 w-3.5" /> : <Package className="h-3.5 w-3.5" />}
+                      {p.tipo === "combo" ? (
+                        <Boxes className="h-3.5 w-3.5" />
+                      ) : (
+                        <Package className="h-3.5 w-3.5" />
+                      )}
                       {p.tipo === "combo" ? "Combo" : "Simples"}
                     </span>
                     {p.tipo === "combo" && (
@@ -196,7 +221,7 @@ function AdminProdutosPage() {
                       />
                     )}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{p.categoria}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{p.categoriaNome}</td>
                   <td className="px-4 py-3 font-medium">R$ {p.preco.toFixed(2)}</td>
                   <td className="px-4 py-3">
                     <span
@@ -263,7 +288,9 @@ function AdminProdutosPage() {
               value={form.tipo}
               onValueChange={(v) => setForm({ ...form, tipo: v as TipoProduto })}
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="simples">Produto simples</SelectItem>
                 <SelectItem value="combo">Combo (vários produtos)</SelectItem>
@@ -274,13 +301,17 @@ function AdminProdutosPage() {
           <div>
             <Label>Categoria</Label>
             <Select
-              value={form.categoria}
-              onValueChange={(v) => setForm({ ...form, categoria: v })}
+              value={String(form.categoriaId)}
+              onValueChange={(v) => setForm({ ...form, categoriaId: Number(v) })}
             >
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione" />
+              </SelectTrigger>
               <SelectContent>
                 {categorias.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.nome}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -418,7 +449,9 @@ function AdminProdutosPage() {
                     key={it.produtoId}
                     className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
                   >
-                    <span className="flex-1 text-sm text-foreground">{produtoNome(it.produtoId)}</span>
+                    <span className="flex-1 text-sm text-foreground">
+                      {produtoNome(it.produtoId)}
+                    </span>
                     <Input
                       type="number"
                       min={1}
@@ -481,7 +514,9 @@ function Pagination({
           </SelectTrigger>
           <SelectContent>
             {PAGE_SIZE_OPTIONS.map((s) => (
-              <SelectItem key={s} value={String(s)}>{s}</SelectItem>
+              <SelectItem key={s} value={String(s)}>
+                {s}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -494,7 +529,12 @@ function Pagination({
         <span className="text-muted-foreground">
           Página <strong className="text-foreground">{page}</strong> de {totalPages}
         </span>
-        <Button size="icon" variant="outline" disabled={page >= totalPages} onClick={() => onPage(page + 1)}>
+        <Button
+          size="icon"
+          variant="outline"
+          disabled={page >= totalPages}
+          onClick={() => onPage(page + 1)}
+        >
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
