@@ -1,0 +1,100 @@
+name: Deploy Homologação (Vercel)
+
+# Pipeline de HOMOLOGAÇÃO — separado do deploy de produção (deploy.yml / VPS).
+# Dispara quando um PR cuja base é `release` recebe um Approve, publicando o
+# CÓDIGO DO PR (head) na Vercel como SPA estático apontando para a API de
+# homologação (Render). Também permite rerun manual via workflow_dispatch.
+#
+# Abordagem: build próprio no runner com DEPLOY_TARGET=vercel-spa (gera
+# dist/client), empacotado na Build Output API v3 (.vercel/output/static) e
+# publicado com `vercel deploy --prebuilt`. Não usa `vercel build` (assim o
+# DEPLOY_TARGET é garantido no ambiente do build e o output SPA é explícito).
+
+on:
+  pull_request_review:
+    types: [submitted]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/tag/SHA a publicar em homologação"
+        default: "release"
+        required: false
+
+# Cancela deploys sobrepostos do mesmo PR/ref (evita publicar estados antigos).
+concurrency:
+  group: homolog-${{ github.event.pull_request.number || github.event.inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-homologacao:
+    name: Build & Deploy SPA to Vercel (homologação)
+    runs-on: ubuntu-latest
+    # Gate de autorização: o Environment `homologacao` exige aprovação de um
+    # required reviewer (a "lista de bypass") antes de rodar, e guarda os secrets.
+    environment: homologacao
+    # Só roda no disparo manual OU num review "approved" de PR com base `release`.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request_review' &&
+       github.event.review.state == 'approved' &&
+       github.event.pull_request.base.ref == 'release')
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      # Checkout do CÓDIGO APROVADO: head do PR no gatilho de review; o ref
+      # informado no disparo manual (default `release`).
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: >-
+            ${{ github.event_name == 'workflow_dispatch'
+                && github.event.inputs.ref
+                || github.event.pull_request.head.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install deps
+        run: |
+          npm install -g npm@11
+          npm ci
+
+      # Build SPA: DEPLOY_TARGET=vercel-spa gera dist/client (estáticos + _shell.html).
+      # A base da API de homologação (Render) é embutida no bundle em build time.
+      - name: Build (SPA, API de homologação)
+        run: DEPLOY_TARGET=vercel-spa npm run build
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL_HOMOLOG }}
+
+      # Empacota no formato Build Output API v3: estáticos + config com fallback SPA.
+      - name: Montar Build Output (.vercel/output)
+        run: |
+          rm -rf .vercel/output
+          mkdir -p .vercel/output/static
+          cp -r dist/client/. .vercel/output/static/
+          cat > .vercel/output/config.json <<'EOF'
+          {
+            "version": 3,
+            "routes": [
+              { "handle": "filesystem" },
+              { "src": "/.*", "dest": "/_shell.html" }
+            ]
+          }
+          EOF
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      # Publica no production do projeto DEDICADO de homologação (URL fixa).
+      - name: Vercel deploy (prebuilt)
+        run: |
+          URL=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          echo "Deploy de homologação publicado em: $URL"
+          {
+            echo "## Homologação publicada 🚀"
+            echo "URL: $URL"
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
