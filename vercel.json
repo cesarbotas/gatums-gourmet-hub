@@ -1,5 +1,8 @@
 {
-  "buildCommand": "npm run build",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "DEPLOY_TARGET=vercel-spa npm run build",
+  "outputDirectory": "dist/client",
   "installCommand": "npm ci",
-  "framework": null
+  "rewrites": [{ "source": "/(.*)", "destination": "/_shell.html" }]
 }
