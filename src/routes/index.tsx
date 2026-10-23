@@ -46,12 +46,11 @@ function HomePage() {
                 <Sparkles className="h-3 w-3 text-accent" /> Produção artesanal
               </span>
               <h1 className="mt-4 font-display text-5xl leading-[1.05] text-foreground sm:text-6xl">
-                Sabores feitos com{" "}
-                <span className="text-gradient-warm">tempo e cuidado</span>
+                Sabores feitos com <span className="text-gradient-warm">tempo e cuidado</span>
               </h1>
               <p className="mt-5 max-w-lg text-lg text-muted-foreground">
-                Geleias, pães de fermentação natural, patês e doces preparados em
-                pequenos lotes — direto da nossa cozinha para a sua mesa.
+                Geleias, pães de fermentação natural, patês e doces preparados em pequenos lotes —
+                direto da nossa cozinha para a sua mesa.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button size="lg" asChild>
@@ -78,9 +77,7 @@ function HomePage() {
                   <dd className="mt-1 font-display text-2xl text-foreground">+800</dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Anos
-                  </dt>
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Anos</dt>
                   <dd className="mt-1 font-display text-2xl text-foreground">7</dd>
                 </div>
               </dl>
@@ -103,14 +100,23 @@ function HomePage() {
         <section className="border-y border-border bg-secondary/40">
           <div className="mx-auto grid max-w-7xl gap-6 px-4 py-12 sm:px-6 md:grid-cols-3">
             {[
-              { icon: Leaf, title: "Ingredientes selecionados", desc: "Produtores locais e matérias-primas frescas." },
-              { icon: Award, title: "Receitas próprias", desc: "Desenvolvidas e ajustadas ao longo de anos." },
-              { icon: Sparkles, title: "Pequenos lotes", desc: "Produção controlada para garantir qualidade." },
+              {
+                icon: Leaf,
+                title: "Ingredientes selecionados",
+                desc: "Produtores locais e matérias-primas frescas.",
+              },
+              {
+                icon: Award,
+                title: "Receitas próprias",
+                desc: "Desenvolvidas e ajustadas ao longo de anos.",
+              },
+              {
+                icon: Sparkles,
+                title: "Pequenos lotes",
+                desc: "Produção controlada para garantir qualidade.",
+              },
             ].map(({ icon: Icon, title, desc }) => (
-              <div
-                key={title}
-                className="rounded-2xl border border-border bg-card p-6 shadow-sm"
-              >
+              <div key={title} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
                 <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-warm text-primary-foreground">
                   <Icon className="h-5 w-5" />
                 </span>
@@ -152,7 +158,7 @@ function HomePage() {
                   />
                 </div>
                 <div className="p-5">
-                  <p className="text-xs uppercase tracking-wide text-accent">{p.categoria}</p>
+                  <p className="text-xs uppercase tracking-wide text-accent">{p.categoriaNome}</p>
                   <h3 className="mt-1 text-lg font-semibold text-foreground">{p.nome}</h3>
                   <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{p.descricao}</p>
                   {p.tipo === "combo" && (

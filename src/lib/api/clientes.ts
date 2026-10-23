@@ -1,5 +1,5 @@
 import { apiRequest } from "./client";
-import type { PaginatedResponse } from "./config";
+import { appendPageParams, mapPaginated, type PaginatedResponse } from "./config";
 import type { Endereco } from "./enderecos";
 
 export interface Cliente {
@@ -55,14 +55,12 @@ export const clientesService = {
   async list(
     params: { page?: number; pageSize?: number; search?: string } = {},
   ): Promise<PaginatedResponse<Cliente>> {
-    const page = params.page ?? 1;
-    const pageSize = params.pageSize ?? 10;
-    const qs = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    const qs = new URLSearchParams();
+    const { page, pageSize } = appendPageParams(qs, params);
     if (params.search) qs.set("search", params.search);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await apiRequest<any>(`/clientes?${qs}`);
-    const items: Cliente[] = (res.items ?? res).map(mapCliente);
-    return { items, total: res.total ?? items.length, page: res.page ?? page, pageSize: res.pageSize ?? pageSize };
+    return mapPaginated(res, (raw) => mapCliente(raw), { page, pageSize });
   },
 
   async create(
@@ -106,7 +104,7 @@ export const clientesService = {
 
   async count(): Promise<number> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res = await apiRequest<any>("/clientes?page=1&pageSize=1");
-    return res.total ?? 0;
+    const res = await apiRequest<any>("/clientes?pagina=1&tamanho=1");
+    return res.totalRegistros ?? res.total ?? 0;
   },
 };
