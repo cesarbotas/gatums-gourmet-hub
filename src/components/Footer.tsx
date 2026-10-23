@@ -7,15 +7,16 @@ export function Footer() {
             Gatums <span className="text-gradient-warm">Gourmet</span>
           </h3>
           <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-            Produtos artesanais feitos com tempo, técnica e ingredientes selecionados.
+            Brigadeiros gourmet, tortas e doces artesanais, feitos à mão com ingredientes
+            selecionados.
           </p>
         </div>
         <div>
           <h4 className="text-sm font-semibold text-foreground">Contato</h4>
           <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
-            <li>contato@gatumsgourmet.com</li>
-            <li>(11) 90000-0000</li>
-            <li>São Paulo, SP</li>
+            <li>gatumsgourmet@gmail.com</li>
+            <li>(13) 9 9134-1233</li>
+            <li>Santos, SP</li>
           </ul>
         </div>
         <div>
