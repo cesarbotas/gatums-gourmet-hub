@@ -83,7 +83,10 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           # API de homologação embutida no bundle em build time.
+          # VITE_API_BASE_URL = RAIZ SEM versão (ex.: https://gatums-gourmet-api.onrender.com).
+          # A versão vem de VITE_API_VERSION (o código monta `${BASE}/api/${versao}`).
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL_HOMOLOG }}
+          VITE_API_VERSION: ${{ vars.VITE_API_VERSION || 'v1' }}
           DEPLOY_TARGET: vercel-spa
 
       # Publica no production do projeto DEDICADO de homologação (URL fixa).
