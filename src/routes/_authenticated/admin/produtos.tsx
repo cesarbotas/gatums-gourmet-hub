@@ -35,6 +35,7 @@ import {
 } from "@/lib/api";
 import { resolveComboItens } from "@/lib/combo-display";
 import { ComboItensList } from "@/components/ComboItensList";
+import { CategoriaCombobox } from "@/components/CategoriaCombobox";
 
 export const Route = createFileRoute("/_authenticated/admin/produtos")({
   component: AdminProdutosPage,
@@ -300,21 +301,12 @@ function AdminProdutosPage() {
 
           <div>
             <Label>Categoria</Label>
-            <Select
+            <CategoriaCombobox
+              categorias={categorias}
               value={String(form.categoriaId)}
-              onValueChange={(v) => setForm({ ...form, categoriaId: Number(v) })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                {categorias.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => setForm({ ...form, categoriaId: Number(v) })}
+              placeholder="Selecione a categoria"
+            />
           </div>
 
           <div className="md:col-span-2">

@@ -16,6 +16,7 @@ import {
 import { produtosService, categoriasService, type Produto, type Categoria } from "@/lib/api";
 import { resolveComboItens } from "@/lib/combo-display";
 import { ComboItensList } from "@/components/ComboItensList";
+import { CategoriaCombobox } from "@/components/CategoriaCombobox";
 import { useAuth } from "@/lib/auth-context";
 import { useCart } from "@/lib/cart-context";
 
@@ -134,19 +135,13 @@ function CatalogoPage() {
                 />
               </div>
               <div className="md:col-span-3">
-                <Select value={categoriaId} onValueChange={setCategoriaId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Categoria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todas as categorias</SelectItem>
-                    {categorias.map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {c.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <CategoriaCombobox
+                  categorias={categorias}
+                  value={categoriaId}
+                  onChange={setCategoriaId}
+                  allOption={{ value: "todas", label: "Todas as categorias" }}
+                  placeholder="Categoria"
+                />
               </div>
               <div className="md:col-span-2">
                 <Select value={tipo} onValueChange={(v) => setTipo(v as typeof tipo)}>
