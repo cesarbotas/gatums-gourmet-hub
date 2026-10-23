@@ -68,7 +68,19 @@ jobs:
         env:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL_HOMOLOG }}
 
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      # Vincula o projeto Vercel (cria .vercel/project.json a partir do token +
+      # VERCEL_ORG_ID/VERCEL_PROJECT_ID). Sem isso o deploy --prebuilt falha com
+      # "Project not found". Roda ANTES de montar o Build Output.
+      - name: Vercel link
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
       # Empacota no formato Build Output API v3: estáticos + config com fallback SPA.
+      # (Preserva o .vercel/project.json criado pelo pull; só mexe em .vercel/output.)
       - name: Montar Build Output (.vercel/output)
         run: |
           rm -rf .vercel/output
@@ -83,9 +95,6 @@ jobs:
             ]
           }
           EOF
-
-      - name: Install Vercel CLI
-        run: npm install -g vercel@latest
 
       # Publica no production do projeto DEDICADO de homologação (URL fixa).
       - name: Vercel deploy (prebuilt)
