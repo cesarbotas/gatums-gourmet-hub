@@ -12,11 +12,11 @@ import { ComboItensList } from "@/components/ComboItensList";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Gatums Gourmet — Produtos artesanais com alma" },
+      { title: "Gatums Gourmet — Doces, tortas e brigadeiros artesanais" },
       {
         name: "description",
         content:
-          "Geleias, doces, pães e patês artesanais. Conheça o catálogo Gatums Gourmet e faça seu pedido.",
+          "Brigadeiros gourmet, tortas e doces artesanais feitos com carinho. Conheça o catálogo Gatums Gourmet e faça seu pedido.",
       },
     ],
   }),
@@ -43,14 +43,15 @@ function HomePage() {
           <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 md:grid-cols-2 md:py-24">
             <div>
               <span className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary/60 px-3 py-1 text-xs font-medium text-muted-foreground">
-                <Sparkles className="h-3 w-3 text-accent" /> Produção artesanal
+                <Sparkles className="h-3 w-3 text-accent" /> Doçaria artesanal
               </span>
               <h1 className="mt-4 font-display text-5xl leading-[1.05] text-foreground sm:text-6xl">
-                Sabores feitos com <span className="text-gradient-warm">tempo e cuidado</span>
+                Doces que adoçam os seus <span className="text-gradient-warm">momentos especiais</span>
               </h1>
               <p className="mt-5 max-w-lg text-lg text-muted-foreground">
-                Geleias, pães de fermentação natural, patês e doces preparados em pequenos lotes —
-                direto da nossa cozinha para a sua mesa.
+                Brigadeiros gourmet, tortas e doces artesanais feitos à mão, com ingredientes
+                selecionados e muito carinho — perfeitos para festas, presentes ou aquele desejo de
+                comer algo delicioso.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button size="lg" asChild>
@@ -66,19 +67,19 @@ function HomePage() {
               <dl className="mt-10 grid grid-cols-3 gap-6 border-t border-border pt-6">
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Receitas
+                    Receitas de tortas
                   </dt>
-                  <dd className="mt-1 font-display text-2xl text-foreground">+40</dd>
+                  <dd className="mt-1 font-display text-2xl text-foreground">7</dd>
                 </div>
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-muted-foreground">
                     Clientes
                   </dt>
-                  <dd className="mt-1 font-display text-2xl text-foreground">+800</dd>
+                  <dd className="mt-1 font-display text-2xl text-foreground">+100</dd>
                 </div>
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-muted-foreground">Anos</dt>
-                  <dd className="mt-1 font-display text-2xl text-foreground">7</dd>
+                  <dd className="mt-1 font-display text-2xl text-foreground">3</dd>
                 </div>
               </dl>
             </div>
@@ -87,7 +88,7 @@ function HomePage() {
               <div className="absolute -inset-6 rounded-3xl bg-gradient-warm opacity-20 blur-3xl" />
               <img
                 src={heroImage}
-                alt="Tábua rústica com produtos gourmet artesanais"
+                alt="Mesa com brigadeiros gourmet, tortas e doces artesanais"
                 width={1600}
                 height={1024}
                 className="relative w-full rounded-3xl border border-border object-cover shadow-warm"
@@ -102,18 +103,18 @@ function HomePage() {
             {[
               {
                 icon: Leaf,
-                title: "Ingredientes selecionados",
-                desc: "Produtores locais e matérias-primas frescas.",
+                title: "Ingredientes de verdade",
+                desc: "Chocolate nobre, frutas frescas e nada de conservantes.",
               },
               {
                 icon: Award,
-                title: "Receitas próprias",
-                desc: "Desenvolvidas e ajustadas ao longo de anos.",
+                title: "Feito à mão",
+                desc: "Cada brigadeiro e torta é preparado artesanalmente.",
               },
               {
                 icon: Sparkles,
-                title: "Pequenos lotes",
-                desc: "Produção controlada para garantir qualidade.",
+                title: "Fresquinho na sua mão",
+                desc: "Feito no dia e entregue com todo o cuidado em Santos.",
               },
             ].map(({ icon: Icon, title, desc }) => (
               <div key={title} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
@@ -131,9 +132,9 @@ function HomePage() {
         <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
           <div className="mb-8 flex items-end justify-between">
             <div>
-              <h2 className="font-display text-3xl text-foreground">Destaques da semana</h2>
+              <h2 className="font-display text-3xl text-foreground">Os queridinhos da casa</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Algumas das receitas mais queridas pelos nossos clientes.
+                Os doces e tortas que mais fazem sucesso entre os nossos clientes.
               </p>
             </div>
             <Link
