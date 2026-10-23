@@ -57,44 +57,28 @@ jobs:
           node-version: '22'
 
       - name: Install deps
-        run: |
-          npm install -g npm@11
-          npm ci
-
-      # Build SPA: DEPLOY_TARGET=vercel-spa gera dist/client (estáticos + _shell.html).
-      # A base da API de homologação (Render) é embutida no bundle em build time.
-      - name: Build (SPA, API de homologação)
-        run: DEPLOY_TARGET=vercel-spa npm run build
-        env:
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL_HOMOLOG }}
+        run: npm install -g npm@11
 
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
-      # Vincula o projeto Vercel (cria .vercel/project.json a partir do token +
-      # VERCEL_ORG_ID/VERCEL_PROJECT_ID). Sem isso o deploy --prebuilt falha com
-      # "Project not found". Roda ANTES de montar o Build Output.
-      - name: Vercel link
+      # Fluxo oficial Vercel CLI: pull (vincula o projeto + baixa settings) ->
+      # build (gera .vercel/output pelo vercel.json, que já embute
+      # DEPLOY_TARGET=vercel-spa + outputDirectory dist/client + rewrite SPA) ->
+      # deploy --prebuilt. O `vercel build` cria o vínculo que o deploy --prebuilt
+      # exige (montar .vercel/output na mão causava "Project not found").
+      - name: Vercel pull
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
-      # Empacota no formato Build Output API v3: estáticos + config com fallback SPA.
-      # (Preserva o .vercel/project.json criado pelo pull; só mexe em .vercel/output.)
-      - name: Montar Build Output (.vercel/output)
-        run: |
-          rm -rf .vercel/output
-          mkdir -p .vercel/output/static
-          cp -r dist/client/. .vercel/output/static/
-          cat > .vercel/output/config.json <<'EOF'
-          {
-            "version": 3,
-            "routes": [
-              { "handle": "filesystem" },
-              { "src": "/.*", "dest": "/_shell.html" }
-            ]
-          }
-          EOF
+      - name: Vercel build (SPA, API de homologação)
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          # API de homologação embutida no bundle em build time.
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL_HOMOLOG }}
+          DEPLOY_TARGET: vercel-spa
 
       # Publica no production do projeto DEDICADO de homologação (URL fixa).
       - name: Vercel deploy (prebuilt)
