@@ -69,7 +69,8 @@ Build Docker + container rodado localmente (SSR 200, assets com cache, health
 ### Contexto
 Criar um ambiente de homologação separado de produção, publicado na Vercel
 quando um PR cujo alvo é `release` recebe um Approve, apontando para a API de
-homologação (`https://gatums-gourmet-api.onrender.com`).
+homologação (`https://gatums-gourmet-api.onrender.com/api/v1` — o path `/api/v1`
+é obrigatório, pois o código monta `${VITE_API_BASE_URL}/auth/login`).
 
 ### Decisões de design (aprovadas)
 - Gatilho: `pull_request_review` (approved) + base `release`, publicando o
