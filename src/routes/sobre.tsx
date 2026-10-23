@@ -15,10 +15,11 @@ const WHATSAPP_MSG = encodeURIComponent(
 export const Route = createFileRoute("/sobre")({
   head: () => ({
     meta: [
-      { title: "Sobre — Gatums Gourmet" },
+      { title: "Sobre — Gatums Gourmet | Doces, tortas e brigadeiros em Santos" },
       {
         name: "description",
-        content: "Conheça a história e os valores por trás da Gatums Gourmet, em Santos/SP.",
+        content:
+          "Há anos adoçando Santos com brigadeiros gourmet, tortas e doces artesanais feitos à mão. Conheça a Gatums Gourmet e peça o seu.",
       },
     ],
   }),
@@ -31,16 +32,26 @@ function SobrePage() {
       <Navigation />
       <main className="flex-1">
         <section className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-          <h1 className="font-display text-4xl text-foreground">Nossa história</h1>
+          <h1 className="font-display text-4xl text-foreground">
+            Doces que viram <span className="text-gradient-warm">boas lembranças</span>
+          </h1>
           <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-            A <strong className="text-foreground">Gatums Gourmet</strong> nasceu em uma cozinha
-            pequena, com a vontade de fazer comida de verdade. Continuamos apaixonados por
-            fermentações longas, geleias borbulhando no fogão e a cara de quem prova um doce
-            nosso pela primeira vez.
+            A <strong className="text-foreground">Gatums Gourmet</strong> nasceu de um desejo
+            simples: fazer o melhor brigadeiro que você já provou. Começamos numa cozinha pequena
+            em Santos e, em três anos, já adoçamos a vida de mais de cem clientes que voltam sempre
+            — porque doce bom a gente não esquece.
           </p>
           <p className="mt-4 leading-relaxed text-muted-foreground">
-            Trabalhamos em pequenos lotes, com produtores locais sempre que possível, e cada
-            receita passa por dezenas de testes antes de chegar ao catálogo.
+            Trabalhamos com chocolate de verdade, pistache, chocolate branco e ingredientes
+            escolhidos a dedo. Nada de atalhos nem conservadores: cada brigadeiro é enrolado à mão e
+            cada uma das nossas sete receitas de torta é feita no dia, para chegar até você no ponto
+            certo de sabor e maciez.
+          </p>
+          <p className="mt-4 leading-relaxed text-muted-foreground">
+            Seja para uma festa, um presente que surpreende ou aquela vontade de se presentear,
+            a gente prepara tudo com o mesmo carinho de quem faz para a própria família. É esse
+            cuidado que transforma um doce num momento especial — e é por isso que tanta gente
+            confia na Gatums para adoçar as datas que importam.
           </p>
 
           <div className="mt-12 grid gap-4 sm:grid-cols-2">
@@ -49,7 +60,9 @@ function SobrePage() {
                 <MapPin className="h-4 w-4" /> Onde estamos
               </h3>
               <p className="mt-3 text-foreground">Santos, SP</p>
-              <p className="text-sm text-muted-foreground">Retirada e entrega sob agendamento.</p>
+              <p className="text-sm text-muted-foreground">
+                Entrega e retirada sob agendamento. Encomende com antecedência.
+              </p>
             </div>
             <div className="rounded-2xl border border-border bg-card p-6">
               <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-accent">
@@ -68,9 +81,9 @@ function SobrePage() {
           </div>
 
           <div className="mt-8 rounded-2xl border border-border bg-gradient-warm/10 p-6">
-            <h3 className="font-display text-2xl text-foreground">Vamos conversar?</h3>
+            <h3 className="font-display text-2xl text-foreground">Bateu a vontade de doce?</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Tire dúvidas, faça encomendas ou siga as novidades nas redes.
+              Chame a gente no WhatsApp, faça sua encomenda ou acompanhe as novidades.
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Button asChild className="bg-[#25D366] text-white hover:bg-[#1ebe57]">
@@ -109,7 +122,7 @@ function SobrePage() {
               </p>
             </div>
             <a
-              href={`https://wwww.instagram.com/${INSTAGRAM}`}
+              href={`https://www.instagram.com/${INSTAGRAM}`}
               target="_blank"
               rel="noopener noreferrer"
               className="block p-5 text-sm font-medium text-accent hover:underline"
