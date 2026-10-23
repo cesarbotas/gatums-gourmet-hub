@@ -49,7 +49,7 @@
 :root {
   --radius: 0.875rem;
 
-  /* Sweet & Vibrant palette — framboesa + caramelo + pistache */
+  /* Sweet & Vibrant palette — framboesa + caramelo + rosa-nude */
   --background: oklch(0.99 0.008 90);        /* creme bem claro */
   --foreground: oklch(0.25 0.05 30);         /* chocolate escuro */
 
