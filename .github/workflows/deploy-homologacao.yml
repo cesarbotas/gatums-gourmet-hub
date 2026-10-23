@@ -38,9 +38,6 @@ jobs:
       (github.event_name == 'pull_request_review' &&
        github.event.review.state == 'approved' &&
        github.event.pull_request.base.ref == 'release')
-    env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       # Checkout do CÓDIGO APROVADO: head do PR no gatilho de review; o ref
       # informado no disparo manual (default `release`).
@@ -67,15 +64,24 @@ jobs:
       # DEPLOY_TARGET=vercel-spa + outputDirectory dist/client + rewrite SPA) ->
       # deploy --prebuilt. O `vercel build` cria o vínculo que o deploy --prebuilt
       # exige (montar .vercel/output na mão causava "Project not found").
+      # ORG/PROJECT ID ficam SÓ no pull e no build (que criam/validam o vínculo
+      # gravando .vercel/project.json). No deploy eles são OMITIDOS de propósito:
+      # com essas env vars presentes, `vercel deploy --prebuilt` entra em conflito
+      # e falha com "Project not found" mesmo após pull/build acharem o projeto.
+      # Sem elas, o deploy usa o .vercel/project.json já criado.
       - name: Vercel pull
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Vercel build (SPA, API de homologação)
         run: vercel build --prod --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           # API de homologação embutida no bundle em build time.
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL_HOMOLOG }}
           DEPLOY_TARGET: vercel-spa
