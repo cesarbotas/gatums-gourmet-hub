@@ -38,9 +38,6 @@ jobs:
       (github.event_name == 'pull_request_review' &&
        github.event.review.state == 'approved' &&
        github.event.pull_request.base.ref == 'release')
-    env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       # Checkout do CÓDIGO APROVADO: head do PR no gatilho de review; o ref
       # informado no disparo manual (default `release`).
@@ -57,35 +54,40 @@ jobs:
           node-version: '22'
 
       - name: Install deps
-        run: |
-          npm install -g npm@11
-          npm ci
-
-      # Build SPA: DEPLOY_TARGET=vercel-spa gera dist/client (estáticos + _shell.html).
-      # A base da API de homologação (Render) é embutida no bundle em build time.
-      - name: Build (SPA, API de homologação)
-        run: DEPLOY_TARGET=vercel-spa npm run build
-        env:
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL_HOMOLOG }}
-
-      # Empacota no formato Build Output API v3: estáticos + config com fallback SPA.
-      - name: Montar Build Output (.vercel/output)
-        run: |
-          rm -rf .vercel/output
-          mkdir -p .vercel/output/static
-          cp -r dist/client/. .vercel/output/static/
-          cat > .vercel/output/config.json <<'EOF'
-          {
-            "version": 3,
-            "routes": [
-              { "handle": "filesystem" },
-              { "src": "/.*", "dest": "/_shell.html" }
-            ]
-          }
-          EOF
+        run: npm install -g npm@11
 
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
+
+      # Fluxo oficial Vercel CLI: pull (vincula o projeto + baixa settings) ->
+      # build (gera .vercel/output pelo vercel.json, que já embute
+      # DEPLOY_TARGET=vercel-spa + outputDirectory dist/client + rewrite SPA) ->
+      # deploy --prebuilt. O `vercel build` cria o vínculo que o deploy --prebuilt
+      # exige (montar .vercel/output na mão causava "Project not found").
+      # ORG/PROJECT ID ficam SÓ no pull e no build (que criam/validam o vínculo
+      # gravando .vercel/project.json). No deploy eles são OMITIDOS de propósito:
+      # com essas env vars presentes, `vercel deploy --prebuilt` entra em conflito
+      # e falha com "Project not found" mesmo após pull/build acharem o projeto.
+      # Sem elas, o deploy usa o .vercel/project.json já criado.
+      - name: Vercel pull
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Vercel build (SPA, API de homologação)
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          # API de homologação embutida no bundle em build time.
+          # VITE_API_BASE_URL = RAIZ SEM versão (ex.: https://gatums-gourmet-api.onrender.com).
+          # A versão vem de VITE_API_VERSION (o código monta `${BASE}/api/${versao}`).
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL_HOMOLOG }}
+          VITE_API_VERSION: ${{ vars.VITE_API_VERSION || 'v1' }}
+          DEPLOY_TARGET: vercel-spa
 
       # Publica no production do projeto DEDICADO de homologação (URL fixa).
       - name: Vercel deploy (prebuilt)

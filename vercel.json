@@ -4,5 +4,8 @@
   "buildCommand": "DEPLOY_TARGET=vercel-spa npm run build",
   "outputDirectory": "dist/client",
   "installCommand": "npm ci",
-  "rewrites": [{ "source": "/(.*)", "destination": "/_shell.html" }]
+  "rewrites": [{ "source": "/(.*)", "destination": "/_shell.html" }],
+  "git": {
+    "deploymentEnabled": false
+  }
 }

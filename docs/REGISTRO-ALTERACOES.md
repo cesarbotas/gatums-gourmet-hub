@@ -69,7 +69,8 @@ Build Docker + container rodado localmente (SSR 200, assets com cache, health
 ### Contexto
 Criar um ambiente de homologação separado de produção, publicado na Vercel
 quando um PR cujo alvo é `release` recebe um Approve, apontando para a API de
-homologação (`https://gatums-gourmet-api.onrender.com`).
+homologação (`https://gatums-gourmet-api.onrender.com/api/v1` — o path `/api/v1`
+é obrigatório, pois o código monta `${VITE_API_BASE_URL}/auth/login`).
 
 ### Decisões de design (aprovadas)
 - Gatilho: `pull_request_review` (approved) + base `release`, publicando o
@@ -101,22 +102,31 @@ ambiente). Em vez disso:
    homologação (URL fixa `gatums-gourmet-hub.vercel.app`).
 O `vercel.json` cobre também o caso de a Vercel buildar do fonte (redeploy pelo
 painel): `buildCommand` com `DEPLOY_TARGET=vercel-spa`, `outputDirectory:
-dist/client`, `rewrites` SPA para `/_shell.html`.
+dist/client`, `rewrites` SPA para `/_shell.html`. Além disso,
+`git.deploymentEnabled: false` desliga os deploys automáticos por push — só o
+GitHub Actions publica.
+
+### Fluxo do workflow (final, funcional)
+`vercel pull` → `vercel build` → `vercel deploy --prebuilt`. O `vercel build`
+gera o `.vercel/output` E o vínculo do projeto (montar o output na mão causava
+`Project not found`). Detalhe crítico: `VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` ficam
+SÓ nos steps `pull` e `build`; no step `deploy` são OMITIDOS — com essas env
+vars presentes, `vercel deploy --prebuilt` conflita e falha com
+`Project not found` mesmo após pull/build acharem o projeto. Sem elas, o deploy
+usa o `.vercel/project.json` criado pelo pull/build.
 
 ### Artefatos (branch `feature/ajustes-deploy-vercel`)
 `deploy-homologacao.yml`, `vercel.json`, `.env.homologacao`, interruptor
 `DEPLOY_TARGET` no `vite.config.ts`.
 
-### Verificação
-Build SPA + montagem do `.vercel/output` simulados localmente (Docker): estrutura
-correta, `config.json` válido, `_shell.html` + assets presentes, URL de
-homologação embutida, combobox no bundle. YAML do workflow validado. O
-`vercel deploy` em si depende da conta Vercel (secrets já cadastrados no
-Environment `homologacao`) — a validação final é o primeiro PR aprovado para
-`release`.
+### Verificação — CONCLUÍDA
+Deploy real executado com sucesso via GitHub Actions (disparo manual):
+`vercel pull` ✓ → `vercel build` ✓ (SPA, prerender do shell, API de homologação
+embutida) → `vercel deploy --prebuilt` ✓. Publicado e aliased para a URL fixa
+**https://gatums-gourmet-hub.vercel.app** (`Ready in 4s`).
 
-### Pré-requisitos do usuário (já atendidos)
-Projeto Vercel criado (`gatums-gourmet-hub`, Project ID
+### Pré-requisitos do usuário (atendidos)
+Projeto Vercel `gatums-gourmet-hub` (Project ID
 `prj_nKRPIoJ1waViQUNPMofYUbkJNwBv`); secrets no Environment `homologacao`:
 `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VITE_API_BASE_URL_HOMOLOG`.
 
