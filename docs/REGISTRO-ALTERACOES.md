@@ -119,7 +119,7 @@ Em paralelo, a API introduziu paginação com um novo contrato global.
    de categoria por `categoriaId`, exibição de `categoriaNome`, filtro por id.
 5. **Combobox com busca** (`src/components/CategoriaCombobox.tsx`): substitui os
    selects de categoria por um dropdown com campo de busca (necessário com 100+
-   categorias). [Em finalização]
+   categorias), usado no admin de produtos e no filtro do catálogo. Concluído.
 
 ### Migração do contrato de paginação (global)
 A API trocou o contrato de todos os GETs paginados:
