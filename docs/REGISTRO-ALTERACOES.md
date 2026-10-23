@@ -61,9 +61,10 @@ Build Docker + container rodado localmente (SSR 200, assets com cache, health
 
 ## 2. Pipeline de homologação na Vercel
 
-**Branch:** `feature/deploy-homologacao-vercel` (pausado)
+**Branches:** `feature/deploy-homologacao-vercel` (base inicial) →
+`feature/ajustes-deploy-vercel` (ajustes atuais, criada a partir de
+`feature/cadastro-categorias` + merge da base do Vercel)
 **Design:** `docs/superpowers/specs/2026-10-22-deploy-homologacao-vercel-design.md`
-(nessa branch)
 
 ### Contexto
 Criar um ambiente de homologação separado de produção, publicado na Vercel
@@ -80,17 +81,44 @@ homologação (`https://gatums-gourmet-api.onrender.com`).
 - Separação total: workflow próprio (`deploy-homologacao.yml`), secrets
   próprios, zero impacto no deploy de produção da VPS.
 
-### Ponto em aberto (motivo da pausa)
+### Por que SPA (e não SSR serverless)
 O preset `@lovable.dev/vite-tanstack-config` v2 só suporta os alvos
 `cloudflare-module` e `lovable-fetch-bundle`, e apaga `NITRO_PRESET` do
 ambiente dentro do sandbox — então o SSR serverless nativo da Vercel não é
-autodetectado. Caminho escolhido: **SPA estático na Vercel** (modo `spa` do
-TanStack Start, via um interruptor `DEPLOY_TARGET` no `vite.config.ts`),
-preservando o SSR em produção (VPS). A validação final depende da conta Vercel.
+autodetectado de forma confiável. Caminho adotado: **SPA estático na Vercel**
+(modo `spa` do TanStack Start, via o interruptor `DEPLOY_TARGET` no
+`vite.config.ts`), preservando o SSR em produção (VPS). O ramo
+`vercel-ssr` fica pronto no interruptor para uma eventual migração futura.
 
-### Artefatos (na branch)
+### Mecânica do deploy (ajustes concluídos)
+O workflow NÃO usa `vercel build` (que não garante o `DEPLOY_TARGET` no
+ambiente). Em vez disso:
+1. Builda no runner com `DEPLOY_TARGET=vercel-spa` → gera `dist/client`
+   (estáticos + `_shell.html`), com `VITE_API_BASE_URL` = API de homologação.
+2. Empacota na **Build Output API v3** (`.vercel/output/static` + `config.json`
+   com fallback SPA: `handle: filesystem` e `/.* -> /_shell.html`).
+3. Publica com `vercel deploy --prebuilt --prod` no projeto dedicado de
+   homologação (URL fixa `gatums-gourmet-hub.vercel.app`).
+O `vercel.json` cobre também o caso de a Vercel buildar do fonte (redeploy pelo
+painel): `buildCommand` com `DEPLOY_TARGET=vercel-spa`, `outputDirectory:
+dist/client`, `rewrites` SPA para `/_shell.html`.
+
+### Artefatos (branch `feature/ajustes-deploy-vercel`)
 `deploy-homologacao.yml`, `vercel.json`, `.env.homologacao`, interruptor
 `DEPLOY_TARGET` no `vite.config.ts`.
+
+### Verificação
+Build SPA + montagem do `.vercel/output` simulados localmente (Docker): estrutura
+correta, `config.json` válido, `_shell.html` + assets presentes, URL de
+homologação embutida, combobox no bundle. YAML do workflow validado. O
+`vercel deploy` em si depende da conta Vercel (secrets já cadastrados no
+Environment `homologacao`) — a validação final é o primeiro PR aprovado para
+`release`.
+
+### Pré-requisitos do usuário (já atendidos)
+Projeto Vercel criado (`gatums-gourmet-hub`, Project ID
+`prj_nKRPIoJ1waViQUNPMofYUbkJNwBv`); secrets no Environment `homologacao`:
+`VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VITE_API_BASE_URL_HOMOLOG`.
 
 ---
 
