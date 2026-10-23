@@ -1,16 +1,5 @@
 import { apiRequest } from "./client";
-import type { PaginatedResponse } from "./config";
-
-export const CATEGORIAS = [
-  "Geleias",
-  "Doces",
-  "Patês",
-  "Padaria",
-  "Mercearia",
-  "Bebidas",
-  "Combos",
-] as const;
-export type Categoria = (typeof CATEGORIAS)[number];
+import { appendPageParams, mapPaginated, type PaginatedResponse } from "./config";
 
 export type TipoProduto = "simples" | "combo";
 
@@ -23,7 +12,8 @@ export interface Produto {
   id: string;
   nome: string;
   descricao: string;
-  categoria: string;
+  categoriaId: number;
+  categoriaNome: string;
   preco: number;
   foto: string;
   disponivel: boolean;
@@ -48,7 +38,8 @@ function mapProduto(raw: any): Produto {
     id: raw.id,
     nome: raw.nome ?? "",
     descricao: raw.descricao ?? "",
-    categoria: raw.categoria ?? "",
+    categoriaId: raw.categoriaId ?? 0,
+    categoriaNome: raw.categoriaNome ?? "",
     preco: raw.preco ?? 0,
     foto: raw.fotoUrl ?? raw.foto ?? "",
     disponivel: raw.disponivel ?? true,
@@ -64,32 +55,22 @@ export const produtosService = {
       page?: number;
       pageSize?: number;
       search?: string;
-      categoria?: string;
+      categoriaId?: number;
       tipo?: TipoProduto | "todos";
       disponivel?: boolean;
     } = {},
   ): Promise<PaginatedResponse<Produto>> {
-    const page = params.page ?? 1;
-    const pageSize = params.pageSize ?? 10;
-    const qs = new URLSearchParams({
-      page: String(page),
-      pageSize: String(pageSize),
-    });
+    const qs = new URLSearchParams();
+    const { page, pageSize } = appendPageParams(qs, params);
     if (params.search) qs.set("search", params.search);
-    if (params.categoria && params.categoria !== "Todas") qs.set("categoria", params.categoria);
+    if (typeof params.categoriaId === "number") qs.set("categoriaId", String(params.categoriaId));
     // Query params aceitam o nome do enum (case-insensitive), ex.: ?tipo=simples
     if (params.tipo && params.tipo !== "todos") qs.set("tipo", params.tipo);
     if (typeof params.disponivel === "boolean") qs.set("disponivel", String(params.disponivel));
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await apiRequest<any>(`/produtos?${qs}`);
-    const items: Produto[] = (res.items ?? res).map(mapProduto);
-    return {
-      items,
-      total: res.total ?? items.length,
-      page: res.page ?? page,
-      pageSize: res.pageSize ?? pageSize,
-    };
+    return mapPaginated(res, (raw) => mapProduto(raw), { page, pageSize });
   },
 
   async getById(id: string): Promise<Produto | null> {
@@ -102,14 +83,6 @@ export const produtosService = {
     }
   },
 
-  async categorias(): Promise<string[]> {
-    try {
-      return await apiRequest<string[]>("/produtos/categorias");
-    } catch {
-      return [...CATEGORIAS];
-    }
-  },
-
   async create(input: Omit<Produto, "id" | "criadoEm">): Promise<Produto> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw = await apiRequest<any>("/produtos", {
@@ -117,7 +90,7 @@ export const produtosService = {
       json: {
         nome: input.nome,
         descricao: input.descricao,
-        categoria: input.categoria,
+        categoriaId: input.categoriaId,
         preco: input.preco,
         fotoUrl: input.foto,
         disponivel: input.disponivel,
@@ -136,7 +109,7 @@ export const produtosService = {
         id,
         nome: input.nome,
         descricao: input.descricao,
-        categoria: input.categoria,
+        categoriaId: input.categoriaId,
         preco: input.preco,
         fotoUrl: input.foto,
         disponivel: input.disponivel,

@@ -43,7 +43,9 @@ const ENTREGA_TO_INT: Record<EntregaTipo, number> = { transporte: 0, retirada: 1
 
 /** A API devolve etapas como string lowercase sem underscore ("pagamentoaprovado"). */
 function normalizeEtapa(v: unknown): PedidoEtapa {
-  const s = String(v ?? "").toLowerCase().replace(/[_\s-]/g, "");
+  const s = String(v ?? "")
+    .toLowerCase()
+    .replace(/[_\s-]/g, "");
   const map: Record<string, PedidoEtapa> = {
     criado: "criado",
     aprovado: "aprovado",
@@ -67,16 +69,21 @@ function mapPedido(raw: any): Pedido {
     entregaTipo: e.entregaTipo ?? undefined,
   }));
   if (timeline.length === 0) {
-    timeline = [{
-      etapa: normalizeEtapa(raw.statusAtual ?? ETAPAS_ORDEM[raw.etapa ?? 0]),
-      em: raw.criadoEm ?? raw.data ?? new Date().toISOString(),
-      por: "cliente" as PedidoActor,
-    }];
+    timeline = [
+      {
+        etapa: normalizeEtapa(raw.statusAtual ?? ETAPAS_ORDEM[raw.etapa ?? 0]),
+        em: raw.criadoEm ?? raw.data ?? new Date().toISOString(),
+        por: "cliente" as PedidoActor,
+      },
+    ];
   } else if (raw.statusAtual) {
     // Garante que a etapa atual conste na timeline mesmo se a API não a incluir
     const atual = normalizeEtapa(raw.statusAtual);
     if (timeline[timeline.length - 1].etapa !== atual) {
-      timeline = [...timeline, { etapa: atual, em: raw.data ?? new Date().toISOString(), por: "admin" as PedidoActor }];
+      timeline = [
+        ...timeline,
+        { etapa: atual, em: raw.data ?? new Date().toISOString(), por: "admin" as PedidoActor },
+      ];
     }
   }
   return {
@@ -94,14 +101,14 @@ function mapPedido(raw: any): Pedido {
 export const pedidosService = {
   async listAll(): Promise<Pedido[]> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res = await apiRequest<any>("/pedidos?page=1&pageSize=100");
-    return (res.items ?? res).map(mapPedido);
+    const res = await apiRequest<any>("/pedidos?pagina=1&tamanho=100");
+    return (res.itens ?? res.items ?? res).map(mapPedido);
   },
 
   async listByUser(_userId: string): Promise<Pedido[]> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res = await apiRequest<any>("/pedidos?page=1&pageSize=100");
-    return (res.items ?? res).map(mapPedido);
+    const res = await apiRequest<any>("/pedidos?pagina=1&tamanho=100");
+    return (res.itens ?? res.items ?? res).map(mapPedido);
   },
 
   async getById(id: string): Promise<Pedido | null> {
@@ -123,7 +130,8 @@ export const pedidosService = {
   },
 
   concluirPagamentoCliente(pedidoId: string, transacao: TransacaoPagamento): Promise<Pedido> {
-    if (transacao.status !== "aprovada") throw new Error("Pagamento não foi aprovado pela operadora.");
+    if (transacao.status !== "aprovada")
+      throw new Error("Pagamento não foi aprovado pela operadora.");
     return apiRequest<Pedido>(`/pedidos/${pedidoId}/pagamento/concluir`, {
       method: "POST",
       json: { transacaoId: transacao.id },
@@ -137,7 +145,8 @@ export const pedidosService = {
   ): Promise<Pedido> {
     const pedido = await this.getById(id);
     if (!pedido) throw new Error("Pedido não encontrado");
-    if (!podeAvancar(pedido.timeline, actor)) throw new Error("Esta etapa não pode ser concluída agora.");
+    if (!podeAvancar(pedido.timeline, actor))
+      throw new Error("Esta etapa não pode ser concluída agora.");
     const prox = proximaEtapa(etapaAtual(pedido.timeline));
     if (!prox) throw new Error("Pedido já está finalizado.");
 
