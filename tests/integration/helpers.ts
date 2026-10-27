@@ -106,7 +106,9 @@ export async function loginComo(email: string, senha: string): Promise<string> {
 }
 
 interface RolePapel {
-  id: string;
+  // GET /roles devolve `id` como number (int32) — confirmado contra a API real
+  // (ex.: {"id":1,"nome":"Admin",...}) e pelo OpenAPI (roles/{id} = integer int32).
+  id: number;
   nome: string;
 }
 
@@ -140,7 +142,7 @@ export async function criarClienteEGerente(): Promise<{
     throw new Error(`GET /roles falhou: esperado 200, recebido ${rolesResp.status}`);
   }
   const roles = (await rolesResp.json()) as RolePapel[];
-  const idPorNome = (nome: string): string => {
+  const idPorNome = (nome: string): number => {
     const papel = roles.find((r) => r.nome === nome);
     if (!papel) {
       throw new Error(`Papel '${nome}' nao encontrado em /roles`);
@@ -148,7 +150,7 @@ export async function criarClienteEGerente(): Promise<{
     return papel.id;
   };
 
-  const criarEObterToken = async (prefixo: string, roleId: string): Promise<string> => {
+  const criarEObterToken = async (prefixo: string, roleId: number): Promise<string> => {
     const email = `teste-${prefixo}-${Date.now()}@local.test`;
     const senha = "Teste@123";
     const resp = await fetch(`${baseUrl()}/usuarios`, {
