@@ -50,3 +50,123 @@ export async function loginAdmin(): Promise<string> {
   const body = (await resp.json()) as { accessToken: string };
   return body.accessToken;
 }
+// ---------------------------------------------------------------------------
+// Allowlist de ambiente (SEGURANÇA-CRÍTICA)
+//
+// Os testes INTEGRADOS falam com uma API real. Para impedir que uma rodada
+// acidentalmente aponte para PRODUÇÃO (ou qualquer host desconhecido) e
+// execute operações destrutivas, só permitimos hosts explicitamente listados:
+// o ambiente local e o de homologação (HML). Qualquer outro host é recusado
+// ANTES de qualquer requisição.
+// ---------------------------------------------------------------------------
+
+/** Hosts onde é seguro rodar testes de contrato (match EXATO, sem subdomínios). */
+const HOSTS_PERMITIDOS = ["localhost", "127.0.0.1", "gatums-gourmet-api.onrender.com"] as const;
+
+/**
+ * Função PURA (sem rede): `true` somente para os hosts da allowlist por match
+ * exato. PROD (`gatumsgourmet.com.br`), hosts desconhecidos e subdomínios
+ * arbitrários de um host permitido retornam `false`.
+ */
+export function hostPermitido(host: string): boolean {
+  return (HOSTS_PERMITIDOS as readonly string[]).includes(host);
+}
+
+/**
+ * Garante que a `baseUrl()` corrente aponta para um ambiente permitido
+ * (local ou HML). Lança `Error` com mensagem clara caso contrário. Deve ser
+ * chamada antes de qualquer requisição nos testes de contrato.
+ */
+export function assertAmbientePermitido(): void {
+  const host = new URL(baseUrl()).hostname;
+  if (!hostPermitido(host)) {
+    throw new Error(
+      "Testes de contrato recusados: base '" +
+        baseUrl() +
+        "' nao e local nem HML. PROD/desconhecido bloqueado.",
+    );
+  }
+}
+
+/**
+ * Faz login com credenciais arbitrárias e devolve o `accessToken`. Lança se o
+ * status não for 200. Variante parametrizada de `loginAdmin`.
+ */
+export async function loginComo(email: string, senha: string): Promise<string> {
+  const resp = await fetch(`${baseUrl()}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, senha }),
+  });
+  if (resp.status !== 200) {
+    throw new Error(`loginComo falhou para '${email}': esperado 200, recebido ${resp.status}`);
+  }
+  const body = (await resp.json()) as { accessToken: string };
+  return body.accessToken;
+}
+
+interface RolePapel {
+  id: string;
+  nome: string;
+}
+
+let cacheClienteEGerente: { clienteToken: string; gerenteToken: string } | undefined;
+
+/**
+ * Cria (uma vez por processo) um usuário Cliente e um Gerente usando o seed
+ * admin e devolve seus tokens. Memoizado em variável de módulo para reuso entre
+ * testes da mesma rodada. Emails únicos por timestamp evitam colisão entre
+ * execuções.
+ *
+ * NÃO chamar fora dos testes de contrato (requer API online + ambiente
+ * permitido). Consumido pela Task 4 e pelas Fases 2-3.
+ */
+export async function criarClienteEGerente(): Promise<{
+  clienteToken: string;
+  gerenteToken: string;
+}> {
+  if (cacheClienteEGerente) {
+    return cacheClienteEGerente;
+  }
+
+  const adminToken = await loginAdmin();
+  const authHeaders = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${adminToken}`,
+  };
+
+  const rolesResp = await fetch(`${baseUrl()}/roles`, { headers: authHeaders });
+  if (rolesResp.status !== 200) {
+    throw new Error(`GET /roles falhou: esperado 200, recebido ${rolesResp.status}`);
+  }
+  const roles = (await rolesResp.json()) as RolePapel[];
+  const idPorNome = (nome: string): string => {
+    const papel = roles.find((r) => r.nome === nome);
+    if (!papel) {
+      throw new Error(`Papel '${nome}' nao encontrado em /roles`);
+    }
+    return papel.id;
+  };
+
+  const criarEObterToken = async (prefixo: string, roleId: string): Promise<string> => {
+    const email = `teste-${prefixo}-${Date.now()}@local.test`;
+    const senha = "Teste@123";
+    const resp = await fetch(`${baseUrl()}/usuarios`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ email, senha, telefone: null, roleIds: [roleId] }),
+    });
+    if (resp.status !== 200 && resp.status !== 201) {
+      throw new Error(
+        `POST /usuarios falhou para '${email}': esperado 200/201, recebido ${resp.status}`,
+      );
+    }
+    return loginComo(email, senha);
+  };
+
+  const clienteToken = await criarEObterToken("cliente", idPorNome("Cliente"));
+  const gerenteToken = await criarEObterToken("gerente", idPorNome("Gerente"));
+
+  cacheClienteEGerente = { clienteToken, gerenteToken };
+  return cacheClienteEGerente;
+}
