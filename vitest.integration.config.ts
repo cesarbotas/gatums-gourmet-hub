@@ -23,5 +23,19 @@ export default defineConfig({
     environment: "node",
     include: ["tests/integration/**/*.{test,spec}.ts"],
     testTimeout: 8000,
+    // `beforeAll` dos contratos faz o trabalho mais pesado: `loginAdmin()` +
+    // `criarClienteEGerente()` (login admin + criação de 2 usuários + 2 logins,
+    // todos com bcrypt). Em série, contra uma única API local saturada, esse
+    // setup passa dos 10s do default de `hookTimeout` de forma intermitente
+    // (o arquivo que estoura varia por rodada). Elevamos o hookTimeout para
+    // caber o setup sem flakiness; os testes em si seguem com testTimeout 8s.
+    hookTimeout: 30000,
+    // Execução SERIAL entre arquivos. Os testes de contrato batem numa única
+    // API local e cada arquivo faz `loginAdmin()` (hash de senha / bcrypt) +
+    // probe `apiOnline()` no topo. Com paralelismo de arquivos (default do
+    // Vitest), 8 arquivos disparam login/probe ao mesmo tempo e saturam a API,
+    // estourando o timeout de 8s (login) e o probe de 3s (vira skip). Rodar os
+    // arquivos em série mantém a suíte determinística e verde.
+    fileParallelism: false,
   },
 });
