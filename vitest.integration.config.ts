@@ -23,5 +23,12 @@ export default defineConfig({
     environment: "node",
     include: ["tests/integration/**/*.{test,spec}.ts"],
     testTimeout: 8000,
+    // Execução SERIAL entre arquivos. Os testes de contrato batem numa única
+    // API local e cada arquivo faz `loginAdmin()` (hash de senha / bcrypt) +
+    // probe `apiOnline()` no topo. Com paralelismo de arquivos (default do
+    // Vitest), 8 arquivos disparam login/probe ao mesmo tempo e saturam a API,
+    // estourando o timeout de 8s (login) e o probe de 3s (vira skip). Rodar os
+    // arquivos em série mantém a suíte determinística e verde.
+    fileParallelism: false,
   },
 });
