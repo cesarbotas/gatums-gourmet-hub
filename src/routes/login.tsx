@@ -27,7 +27,8 @@ function LoginPage() {
     try {
       const u = await login(email, password);
       toast.success("Bem-vindo de volta!");
-      router.navigate({ to: u.role === "admin" ? "/admin" : "/minha-conta" });
+      const admin = (u.roles ?? []).some((r) => r === "Admin" || r === "Gerente");
+      router.navigate({ to: admin ? "/admin" : "/minha-conta" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao entrar");
     } finally {

@@ -1,0 +1,265 @@
+# Referência de Testes — Autenticação RBAC + Refresh Token
+
+Guia para validar a migração de autenticação do front `gatums-gourmet-hub`
+rodando junto da API (os dois projetos na mesma rede local). Cobre as variáveis
+de ambiente, os endpoints, o que inspecionar no `localStorage`, e um roteiro de
+testes manuais dos pontos críticos.
+
+> Branch: `feature/auth-rbac-refresh-token`. Spec:
+> `docs/superpowers/specs/2026-10-23-auth-rbac-refresh-token-design.md`.
+
+---
+
+## 1. Variáveis de ambiente
+
+O front compõe a base da API como `${VITE_API_BASE_URL}/api/${VITE_API_VERSION}`
+(ver `src/lib/api/config.ts`). **`VITE_API_BASE_URL` é a raiz SEM a versão** — não
+inclua `/api/v1`.
+
+> As variáveis `VITE_*` são lidas **só no boot** do Vite. Ao mudar qualquer
+> `.env`, **pare (Ctrl+C) e rode `npm run dev` de novo** — recarregar a página
+> NÃO basta. Um dev server que continua rodando mantém o valor antigo em memória;
+> sintoma típico é o front chamar uma URL que **não** está mais em nenhum `.env`
+> (um valor fantasma de uma execução anterior).
+
+### Protocolo por ambiente (HTTP x HTTPS)
+
+Cada ambiente tem seu `.env` com a raiz da API. **O local roda em HTTP** (a API
+Kestrel sobe sem TLS na 5166); **homologação e produção são HTTPS**.
+
+| Ambiente | Arquivo `.env` | `VITE_API_BASE_URL` | Protocolo |
+|---|---|---|---|
+| Local / desenvolvimento | `.env.development` / `.env.local` | `http://localhost:5166` | **HTTP** |
+| Homologação | `.env.homologacao` | `https://gatums-gourmet-api.onrender.com` | **HTTPS** |
+| Produção | `.env.production` / `.env` | `https://gatumsgourmet.com.br` | **HTTPS** |
+
+> No local, use `http://` de propósito. **Não** tente `https://localhost:5166` —
+> a API local não tem certificado TLS e a conexão falharia. Homolog/prod já vêm
+> com `https://` nos respectivos `.env` e não precisam de ajuste.
+
+### Front na mesma máquina da API (setup local padrão)
+
+A API local sobe em **`http://localhost:5166`**. Já vem configurado em
+`.env.development` (versionado). Para um override local não versionado, copie
+`.env.local.example` para `.env.local` (ambos já trazem estes valores):
+
+| Variável | Valor |
+|---|---|
+| `VITE_API_BASE_URL` | `http://localhost:5166` |
+| `VITE_API_VERSION` | `v1` |
+
+Base efetiva: `http://localhost:5166/api/v1`.
+
+> Precedência do Vite: `.env.local` sobrepõe `.env.development`. Se tiver os dois,
+> o `.env.local` vence. O `.env.local` NÃO sobe no git (ignorado por `*.local`);
+> use o `.env.local.example` como modelo na outra máquina.
+
+### Front e API em máquinas diferentes (teste cross-máquina)
+
+Em `.env.development`, aponte para o IP da máquina onde a API roda:
+
+| Variável | Valor | Observação |
+|---|---|---|
+| `VITE_API_BASE_URL` | `http://<IP-da-maquina-da-API>:<porta>` | ex.: `http://192.168.0.10:8080` |
+| `VITE_API_VERSION` | `v1` | anexado automaticamente como `/api/v1` |
+
+Exemplo de `.env.development`:
+
+```
+VITE_API_BASE_URL=http://192.168.0.10:8080
+VITE_API_VERSION=v1
+```
+
+Base efetiva resultante: `http://192.168.0.10:8080/api/v1`.
+
+### Pré-requisitos do lado da API (cross-máquina)
+
+- API escutando em `0.0.0.0` (não só `localhost`), para aceitar conexões da rede.
+- Porta liberada no **firewall** da máquina da API.
+- **CORS** permitindo a origem do front (ex.: `http://192.168.0.11:3000`). Se o
+  navegador bloquear com erro de CORS, é sinal de priorizar a configuração de CORS
+  por ambiente (Fase 2 — ver `docs/Auth/Guia-de-Uso.md`).
+- Descobrir o IP local da máquina da API: `ipconfig` (Windows) / `ip addr` (Linux).
+
+---
+
+## 1.1. Ordem de inicialização (IMPORTANTE)
+
+> A causa mais comum de `net::ERR_CONNECTION_REFUSED` no login é **a API não
+> estar no ar** quando o front faz a requisição. `ERR_CONNECTION_REFUSED`
+> significa literalmente "ninguém escutando na porta" — não é CORS, não é 401,
+> não é o front. **Suba a API primeiro.**
+
+Sequência correta:
+
+1. **Suba a API** (`GatumsGourmet.Api`) e espere ela escutar na porta
+   (`http://localhost:5166`).
+2. **Confirme que a API está no ar** antes de abrir o front:
+
+   **Windows (PowerShell):**
+   ```powershell
+   # Deve listar algo escutando na 5166 (127.0.0.1 e/ou ::1):
+   Get-NetTCPConnection -State Listen -LocalPort 5166
+   # Deve responder HTTP 404 (servidor no ar; rota raiz nao existe):
+   curl.exe -s -o NUL -w "HTTP %{http_code}`n" http://localhost:5166/api/v1
+   ```
+
+   **Smoke test de login** (deve retornar HTTP 200 + accessToken):
+   ```powershell
+   curl.exe -s -X POST -H "Content-Type: application/json" -d '{\"email\":\"admin@gatums.com\",\"senha\":\"Admin@123\"}' http://localhost:5166/api/v1/auth/login
+   ```
+3. **Só então** rode o front: `npm run dev`.
+
+Se o passo 2 responder (404/400/200), a conexão está OK e o login pelo front vai
+funcionar. Se der erro de conexão/timeout, a API ainda não subiu — aguarde ou
+verifique o terminal da API.
+
+> Observação: a porta pode diferir por ambiente. No Windows/Visual Studio é
+> `5166` (perfil do `launchSettings.json`); ao rodar `dotnet run` em macOS/Linux
+> a porta pode ser outra (confira o `Now listening on:` no terminal da API, ou
+> fixe com `dotnet run --urls "http://localhost:5166"`). Ajuste o
+> `VITE_API_BASE_URL` para a porta real e **reinicie o `npm run dev`**.
+
+---
+
+## 2. Endpoints de auth
+
+Base: `${VITE_API_BASE_URL}/api/${VITE_API_VERSION}` (ex.: `/api/v1`).
+
+| Método | Caminho | Body | Auth | Retorno |
+|---|---|---|---|---|
+| POST | `/auth/login` | `{ email, senha }` | — | `{ accessToken, refreshToken, expiresIn, user }` |
+| POST | `/auth/register` | `{ nome, email, senha, telefone? }` | — | 201 (cria Cliente; sem token) |
+| POST | `/auth/refresh` | `{ refreshToken }` | — | mesmo shape do login (rotação) |
+| POST | `/auth/logout` | `{ refreshToken }` | Bearer | revoga a sessão |
+| GET | `/auth/me` | — | Bearer | `{ id, nome, email, roles: [] }` |
+
+`user` = `{ id, nome, email, roles: string[] }`. Papéis em **PascalCase**:
+`"Admin"`, `"Cliente"`, `"Gerente"`.
+
+---
+
+## 3. O que o front guarda (localStorage)
+
+Chave única: **`gg.session`**. Shape:
+
+```json
+{
+  "accessToken": "<jwt 15 min>",
+  "refreshToken": "<token 7 dias>",
+  "user": { "id": "...", "nome": "...", "email": "...", "roles": ["Admin"] }
+}
+```
+
+Para inspecionar: DevTools → Application → Local Storage → chave `gg.session`.
+
+- O header `Authorization: Bearer <accessToken>` é injetado em toda requisição por
+  `src/lib/api/apiRequest` (`client.ts`).
+- No **401**, o front tenta `POST /auth/refresh` uma vez e repete a requisição; só
+  desloga (limpa `gg.session` + redireciona `/login`) se o refresh falhar.
+
+---
+
+## 4. Roteiro de testes manuais
+
+> Antes de tudo: suba a API, ajuste o `.env.development`, **reinicie o `npm run dev`**,
+> e abra o DevTools (abas Network e Application/Local Storage).
+
+### 4.1. Login — Cliente
+
+- [ ] Logar com um usuário de `roles: ["Cliente"]`.
+- [ ] **Esperado:** redireciona para `/minha-conta`.
+- [ ] `gg.session` contém `accessToken`, `refreshToken` e `user.roles` com `"Cliente"`.
+- [ ] A Navigation NÃO mostra o link de Administração.
+
+### 4.2. Login — Admin e Gerente
+
+- [ ] Logar com `roles: ["Admin"]`.
+- [ ] **Esperado:** redireciona para `/admin`; área administrativa acessível.
+- [ ] Repetir com `roles: ["Gerente"]` → **também** deve ir para `/admin` e acessar a gestão.
+- [ ] (Negativo) Com `roles: ["Cliente"]`, acessar `/admin` manualmente pela URL deve
+      redirecionar para `/` (guard de rota).
+
+### 4.3. Refresh automático do access token (ponto crítico)
+
+O access token dura ~15 min. Para validar sem esperar:
+
+- [ ] Logar normalmente.
+- [ ] Em DevTools → Application → Local Storage, editar `gg.session` e **corromper só
+      o `accessToken`** (troque alguns caracteres), mantendo o `refreshToken` válido.
+- [ ] Navegar para uma tela que chama a API (ex.: catálogo, pedidos, `/admin`).
+- [ ] **Esperado:** na aba Network aparece a requisição → `401` → `POST /auth/refresh`
+      (`200`) → a requisição original é **repetida** e tem sucesso. O usuário **NÃO** é
+      deslogado. O `gg.session` passa a ter um `accessToken` novo.
+
+### 4.4. Refresh concorrente (single-flight)
+
+- [ ] Com o `accessToken` corrompido (como em 4.3), abrir uma tela que dispara **várias**
+      chamadas à API ao mesmo tempo (ex.: um dashboard/admin com múltiplos fetchs).
+- [ ] **Esperado:** na aba Network há **apenas UM** `POST /auth/refresh`, e todas as
+      chamadas que receberam 401 são repetidas depois dele. (Não deve haver vários
+      refresh em paralelo.)
+
+### 4.5. Refresh expirado / revogado → logout
+
+- [ ] Em `gg.session`, corromper **também** o `refreshToken` (ou usar um já revogado).
+- [ ] Disparar uma chamada à API.
+- [ ] **Esperado:** `401` → `/auth/refresh` falha → `gg.session` é limpo → redireciona
+      para `/login`. Sem loop de requisições.
+
+### 4.6. Logout
+
+- [ ] Logado, clicar em Sair (Navigation) ou em Minha Conta.
+- [ ] **Esperado:** dispara `POST /auth/logout` com `{ refreshToken }` (ver Network),
+      `gg.session` é removido do localStorage, e o usuário volta para a home.
+- [ ] (Confirmação de revogação) Tentar usar o `refreshToken` antigo em um `POST
+      /auth/refresh` manual (via DevTools/console ou outra ferramenta) deve falhar.
+
+### 4.7. Anti-loop nos endpoints de auth
+
+- [ ] Fazer login com **senha errada**.
+- [ ] **Esperado:** `POST /auth/login` retorna `401` e a tela mostra "Credenciais
+      inválidas" (toast de erro). **NÃO** deve haver tentativa de `/auth/refresh` a
+      partir desse 401 (o login é um 401 terminal).
+
+### 4.8. Registro
+
+- [ ] Criar conta em `/register` (`nome`, `email`, `senha`, `telefone?`).
+- [ ] **Esperado:** cria o Cliente (`201`) e em seguida faz login automático,
+      redirecionando para `/minha-conta`; `gg.session` populado.
+
+### 4.9. Sessão do esquema antigo (pós-deploy)
+
+- [ ] Simular sessão antiga: em `gg.session`, gravar manualmente `{ "token": "x",
+      "user": { "role": "admin" } }` (formato velho) e recarregar.
+- [ ] **Esperado:** o front não quebra; como não há `accessToken`, a primeira chamada
+      protegida resulta em 401 sem refresh válido → vai para `/login`. Depois de
+      **relogar**, tudo volta ao normal.
+
+---
+
+## 5. Checklist rápido de aprovação
+
+- [ ] Login roteia por papel (Cliente→conta; Admin/Gerente→admin).
+- [ ] `gg.session` guarda `accessToken` + `refreshToken` + `user.roles`.
+- [ ] 401 renova o token e repete a requisição sem deslogar (4.3).
+- [ ] Só um `/auth/refresh` sob concorrência (4.4).
+- [ ] Refresh inválido desloga para `/login` sem loop (4.5).
+- [ ] Logout revoga a sessão na API (4.6).
+- [ ] Login com senha errada não dispara refresh (4.7).
+- [ ] CORS liberado para a origem do front (cross-máquina).
+
+---
+
+## 6. Troubleshooting
+
+| Sintoma | Causa provável | Ação |
+|---|---|---|
+| `net::ERR_CONNECTION_REFUSED` no login | **API não está no ar** na porta chamada (causa mais comum) | Subir a API primeiro e confirmar com os comandos da seção 1.1 antes de usar o front |
+| `ERR_CONNECTION_REFUSED` em `https://localhost:5166` | Tentou HTTPS no local (a API local é HTTP) | Usar `http://` no local; HTTPS é só homolog/prod |
+| Toda chamada dá erro de CORS | API não libera a origem do front | Configurar CORS na API (Fase 2) |
+| `Failed to fetch` / timeout | IP/porta errados, firewall, API não escuta em `0.0.0.0` | Conferir `VITE_API_BASE_URL`, firewall e bind da API |
+| Mudei o `.env` e nada mudou / front chama uma URL que não está em nenhum `.env` | dev server com `VITE_*` em cache de execução anterior | **Parar (Ctrl+C) e rodar `npm run dev` de novo** — não basta recarregar a página |
+| Deslogado logo após login | `accessToken`/`refreshToken` não vieram no login, ou refresh falhando | Conferir shape da resposta de `/auth/login` e `/auth/refresh` |
+| Loop de requisições no 401 | refresh devolvendo 401 e sendo retentado | Confirmar que `/auth/refresh` e `/auth/login` estão fora do retry (já tratado no front) |
+| Base da API com `/api/v1` duplicado | `VITE_API_BASE_URL` incluiu a versão | Deixar só a raiz; a versão é anexada por `config.ts` |
