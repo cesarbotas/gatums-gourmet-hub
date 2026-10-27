@@ -20,12 +20,22 @@ inclua `/api/v1`.
 > `.env`, **reinicie o `npm run dev`** (ou refaça o build) — não basta recarregar
 > a página.
 
-### Front na mesma máquina da API
+### Front na mesma máquina da API (setup local padrão)
+
+A API local sobe em **`http://localhost:5166`**. Já vem configurado em
+`.env.development` (versionado). Para um override local não versionado, copie
+`.env.local.example` para `.env.local` (ambos já trazem estes valores):
 
 | Variável | Valor |
 |---|---|
-| `VITE_API_BASE_URL` | `http://localhost:<porta-da-API>` |
+| `VITE_API_BASE_URL` | `http://localhost:5166` |
 | `VITE_API_VERSION` | `v1` |
+
+Base efetiva: `http://localhost:5166/api/v1`.
+
+> Precedência do Vite: `.env.local` sobrepõe `.env.development`. Se tiver os dois,
+> o `.env.local` vence. O `.env.local` NÃO sobe no git (ignorado por `*.local`);
+> use o `.env.local.example` como modelo na outra máquina.
 
 ### Front e API em máquinas diferentes (teste cross-máquina)
 
