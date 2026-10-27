@@ -11,7 +11,7 @@
 const API_ROOT = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "https://gatumsgourmet.com.br";
 const API_VERSION = (import.meta.env.VITE_API_VERSION as string | undefined) ?? "v1";
 
-function buildApiBaseUrl(root: string, version: string): string {
+export function buildApiBaseUrl(root: string, version: string): string {
   const trimmed = root.replace(/\/+$/, "");
   // Já inclui /api/vN (ex.: formato antigo) -> usa como está.
   if (/\/api\/v\d+$/.test(trimmed)) return trimmed;

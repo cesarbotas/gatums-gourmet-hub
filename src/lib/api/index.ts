@@ -7,6 +7,9 @@ export * from "./categorias";
 // abaixo resolve a ambiguidade a favor da entidade; o tipo de produtos segue
 // acessivel via import direto de "./produtos".
 export type { Categoria } from "./categorias";
+export * from "./roles";
+export * from "./permissions";
+export * from "./usuarios";
 export * from "./clientes";
 export * from "./vendas";
 export * from "./pedidos";
