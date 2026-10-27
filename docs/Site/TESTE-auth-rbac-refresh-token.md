@@ -20,6 +20,21 @@ inclua `/api/v1`.
 > `.env`, **reinicie o `npm run dev`** (ou refaça o build) — não basta recarregar
 > a página.
 
+### Protocolo por ambiente (HTTP x HTTPS)
+
+Cada ambiente tem seu `.env` com a raiz da API. **O local roda em HTTP** (a API
+Kestrel sobe sem TLS na 5166); **homologação e produção são HTTPS**.
+
+| Ambiente | Arquivo `.env` | `VITE_API_BASE_URL` | Protocolo |
+|---|---|---|---|
+| Local / desenvolvimento | `.env.development` / `.env.local` | `http://localhost:5166` | **HTTP** |
+| Homologação | `.env.homologacao` | `https://gatums-gourmet-api.onrender.com` | **HTTPS** |
+| Produção | `.env.production` / `.env` | `https://gatumsgourmet.com.br` | **HTTPS** |
+
+> No local, use `http://` de propósito. **Não** tente `https://localhost:5166` —
+> a API local não tem certificado TLS e a conexão falharia. Homolog/prod já vêm
+> com `https://` nos respectivos `.env` e não precisam de ajuste.
+
 ### Front na mesma máquina da API (setup local padrão)
 
 A API local sobe em **`http://localhost:5166`**. Já vem configurado em
@@ -63,6 +78,45 @@ Base efetiva resultante: `http://192.168.0.10:8080/api/v1`.
   navegador bloquear com erro de CORS, é sinal de priorizar a configuração de CORS
   por ambiente (Fase 2 — ver `docs/Auth/Guia-de-Uso.md`).
 - Descobrir o IP local da máquina da API: `ipconfig` (Windows) / `ip addr` (Linux).
+
+---
+
+## 1.1. Ordem de inicialização (IMPORTANTE)
+
+> A causa mais comum de `net::ERR_CONNECTION_REFUSED` no login é **a API não
+> estar no ar** quando o front faz a requisição. `ERR_CONNECTION_REFUSED`
+> significa literalmente "ninguém escutando na porta" — não é CORS, não é 401,
+> não é o front. **Suba a API primeiro.**
+
+Sequência correta:
+
+1. **Suba a API** (`GatumsGourmet.Api`) e espere ela escutar na porta
+   (`http://localhost:5166`).
+2. **Confirme que a API está no ar** antes de abrir o front:
+
+   **Windows (PowerShell):**
+   ```powershell
+   # Deve listar algo escutando na 5166 (127.0.0.1 e/ou ::1):
+   Get-NetTCPConnection -State Listen -LocalPort 5166
+   # Deve responder HTTP 404 (servidor no ar; rota raiz nao existe):
+   curl.exe -s -o NUL -w "HTTP %{http_code}`n" http://localhost:5166/api/v1
+   ```
+
+   **Smoke test de login** (deve retornar HTTP 200 + accessToken):
+   ```powershell
+   curl.exe -s -X POST -H "Content-Type: application/json" -d '{\"email\":\"admin@gatums.com\",\"senha\":\"Admin@123\"}' http://localhost:5166/api/v1/auth/login
+   ```
+3. **Só então** rode o front: `npm run dev`.
+
+Se o passo 2 responder (404/400/200), a conexão está OK e o login pelo front vai
+funcionar. Se der erro de conexão/timeout, a API ainda não subiu — aguarde ou
+verifique o terminal da API.
+
+> Observação: a porta pode diferir por ambiente. No Windows/Visual Studio é
+> `5166` (perfil do `launchSettings.json`); ao rodar `dotnet run` em macOS/Linux
+> a porta pode ser outra (confira o `Now listening on:` no terminal da API, ou
+> fixe com `dotnet run --urls "http://localhost:5166"`). Ajuste o
+> `VITE_API_BASE_URL` para a porta real e **reinicie o `npm run dev`**.
 
 ---
 
@@ -199,6 +253,8 @@ O access token dura ~15 min. Para validar sem esperar:
 
 | Sintoma | Causa provável | Ação |
 |---|---|---|
+| `net::ERR_CONNECTION_REFUSED` no login | **API não está no ar** na porta chamada (causa mais comum) | Subir a API primeiro e confirmar com os comandos da seção 1.1 antes de usar o front |
+| `ERR_CONNECTION_REFUSED` em `https://localhost:5166` | Tentou HTTPS no local (a API local é HTTP) | Usar `http://` no local; HTTPS é só homolog/prod |
 | Toda chamada dá erro de CORS | API não libera a origem do front | Configurar CORS na API (Fase 2) |
 | `Failed to fetch` / timeout | IP/porta errados, firewall, API não escuta em `0.0.0.0` | Conferir `VITE_API_BASE_URL`, firewall e bind da API |
 | Mudei o `.env` e nada mudou | `VITE_*` é build-time | Reiniciar `npm run dev` |
