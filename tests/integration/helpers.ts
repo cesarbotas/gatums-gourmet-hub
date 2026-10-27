@@ -156,7 +156,8 @@ export async function criarClienteEGerente(): Promise<{
     const resp = await fetch(`${baseUrl()}/usuarios`, {
       method: "POST",
       headers: authHeaders,
-      body: JSON.stringify({ email, senha, telefone: null, roleIds: [roleId] }),
+      // `nome` e obrigatorio em CreateUsuarioRequest (OpenAPI) — sem ele a API retorna 400.
+      body: JSON.stringify({ nome: `Teste ${prefixo}`, email, senha, telefone: null, roleIds: [roleId] }),
     });
     if (resp.status !== 200 && resp.status !== 201) {
       throw new Error(

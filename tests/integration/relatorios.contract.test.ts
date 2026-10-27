@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect } from "vitest";
 import { apiOnline, assertAmbientePermitido, baseUrl, loginAdmin } from "./helpers";
 
 // Testes INTEGRADOS de contrato do endpoint de relatórios contra a API local
@@ -20,6 +20,10 @@ import { apiOnline, assertAmbientePermitido, baseUrl, loginAdmin } from "./helpe
 //     serieDiaria: Array<{ data: string; faturamento: number; pedidos: number }>
 //   }
 
+// Guarda de ambiente ANTES de qualquer requisição (inclusive o probe de
+// apiOnline): bloqueia PROD/hosts desconhecidos antes de tocar a rede.
+assertAmbientePermitido();
+
 const online = await apiOnline();
 if (!online) {
   console.warn(
@@ -28,11 +32,6 @@ if (!online) {
 }
 
 describe.skipIf(!online)("contrato: endpoints de relatórios", () => {
-  beforeAll(() => {
-    // Falha rápida e clara se a base não for local/HML (bloqueia PROD).
-    assertAmbientePermitido();
-  });
-
   it("GET /relatorios/vendas/resumo com Bearer admin → 200 com objeto de resumo", async () => {
     const token = await loginAdmin();
     const resp = await fetch(`${baseUrl()}/relatorios/vendas/resumo`, {
