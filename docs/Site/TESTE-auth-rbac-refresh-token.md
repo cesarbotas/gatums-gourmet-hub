@@ -16,9 +16,11 @@ O front compõe a base da API como `${VITE_API_BASE_URL}/api/${VITE_API_VERSION}
 (ver `src/lib/api/config.ts`). **`VITE_API_BASE_URL` é a raiz SEM a versão** — não
 inclua `/api/v1`.
 
-> As variáveis `VITE_*` são embutidas no bundle em **build time**. Ao mudar o
-> `.env`, **reinicie o `npm run dev`** (ou refaça o build) — não basta recarregar
-> a página.
+> As variáveis `VITE_*` são lidas **só no boot** do Vite. Ao mudar qualquer
+> `.env`, **pare (Ctrl+C) e rode `npm run dev` de novo** — recarregar a página
+> NÃO basta. Um dev server que continua rodando mantém o valor antigo em memória;
+> sintoma típico é o front chamar uma URL que **não** está mais em nenhum `.env`
+> (um valor fantasma de uma execução anterior).
 
 ### Protocolo por ambiente (HTTP x HTTPS)
 
@@ -257,7 +259,7 @@ O access token dura ~15 min. Para validar sem esperar:
 | `ERR_CONNECTION_REFUSED` em `https://localhost:5166` | Tentou HTTPS no local (a API local é HTTP) | Usar `http://` no local; HTTPS é só homolog/prod |
 | Toda chamada dá erro de CORS | API não libera a origem do front | Configurar CORS na API (Fase 2) |
 | `Failed to fetch` / timeout | IP/porta errados, firewall, API não escuta em `0.0.0.0` | Conferir `VITE_API_BASE_URL`, firewall e bind da API |
-| Mudei o `.env` e nada mudou | `VITE_*` é build-time | Reiniciar `npm run dev` |
+| Mudei o `.env` e nada mudou / front chama uma URL que não está em nenhum `.env` | dev server com `VITE_*` em cache de execução anterior | **Parar (Ctrl+C) e rodar `npm run dev` de novo** — não basta recarregar a página |
 | Deslogado logo após login | `accessToken`/`refreshToken` não vieram no login, ou refresh falhando | Conferir shape da resposta de `/auth/login` e `/auth/refresh` |
 | Loop de requisições no 401 | refresh devolvendo 401 e sendo retentado | Confirmar que `/auth/refresh` e `/auth/login` estão fora do retry (já tratado no front) |
 | Base da API com `/api/v1` duplicado | `VITE_API_BASE_URL` incluiu a versão | Deixar só a raiz; a versão é anexada por `config.ts` |
