@@ -53,49 +53,60 @@ afterEach(() => {
 // --- consultarCep: validação, erro e mapeamento ----------------------------
 
 describe("consultarCep", () => {
-  it("CEP com != 8 dígitos lança 'CEP inválido' (sem fetch)", async () => {
+  it("CEP com != 8 dígitos lança 'CEP inválido' (sem ir à API)", async () => {
     await expect(consultarCep("123")).rejects.toThrow("CEP inválido");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("resposta { erro: true } lança 'CEP não encontrado'", async () => {
-    fetchMock.mockResolvedValueOnce(fakeResponse(200, { erro: true }));
-
-    await expect(consultarCep("00000000")).rejects.toThrow("CEP não encontrado");
-  });
-
-  it("resposta !ok lança 'Não foi possível consultar o CEP'", async () => {
-    fetchMock.mockResolvedValueOnce(fakeResponse(500, {}));
-
-    await expect(consultarCep("11000000")).rejects.toThrow(
-      "Não foi possível consultar o CEP",
-    );
-  });
-
-  it("resposta ok mapeia localidade→cidade, uf, logradouro etc.", async () => {
+  it("GET /enderecos/cep/{cep} com os 8 dígitos e mapeia estado→uf", async () => {
     fetchMock.mockResolvedValueOnce(
       fakeResponse(200, {
-        cep: "11000-000",
+        cep: "01001000",
         logradouro: "Praça da Sé",
         complemento: "lado ímpar",
         bairro: "Sé",
-        localidade: "São Paulo",
-        uf: "SP",
+        cidade: "São Paulo",
+        estado: "SP",
       }),
     );
 
-    const result = await consultarCep("11.000-000");
+    const result = await consultarCep("01.001-000");
 
-    // só os 8 dígitos vão para a URL do viacep
-    expect(urlOf(fetchMock.mock.calls[0])).toBe("https://viacep.com.br/ws/11000000/json/");
+    // vai à API (que encapsula o ViaCEP), com os 8 dígitos no path
+    expect(urlOf(fetchMock.mock.calls[0])).toBe(`${API_BASE_URL}/enderecos/cep/01001000`);
     expect(result).toEqual({
-      cep: "11000-000",
+      cep: "01001000",
       logradouro: "Praça da Sé",
       complemento: "lado ímpar",
       bairro: "Sé",
       cidade: "São Paulo",
       uf: "SP",
     });
+  });
+
+  it("complemento null da API vira string vazia", async () => {
+    fetchMock.mockResolvedValueOnce(
+      fakeResponse(200, {
+        cep: "01001000",
+        logradouro: "Praça da Sé",
+        complemento: null,
+        bairro: "Sé",
+        cidade: "São Paulo",
+        estado: "SP",
+      }),
+    );
+
+    const result = await consultarCep("01001000");
+
+    expect(result.complemento).toBe("");
+  });
+
+  it("400 da API (ProblemDetails) é relançado como erro com a mensagem (detail)", async () => {
+    // A API devolve 400 para CEP inválido/não encontrado/indisponível;
+    // apiRequest relança como ApiError com o `detail`.
+    fetchMock.mockResolvedValueOnce(fakeResponse(400, { detail: "CEP não encontrado.", status: 400 }));
+
+    await expect(consultarCep("00000000")).rejects.toThrow("CEP não encontrado.");
   });
 });
 
