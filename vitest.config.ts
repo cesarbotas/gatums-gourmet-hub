@@ -20,6 +20,11 @@ export default defineConfig({
     environment: "happy-dom",
     globals: true,
     setupFiles: ["tests/setup.ts"],
+    // Testes de componente (React Testing Library + user-event + render completo)
+    // podem passar dos 5s default sob paralelismo quando a suíte cresce — ex.:
+    // login-form.test.tsx ficava intermitentemente lento. 15s dá folga sem
+    // afrouxar nenhuma asserção (só o orçamento de tempo).
+    testTimeout: 15000,
     include: ["tests/unit/**/*.{test,spec}.{ts,tsx}"],
     exclude: [
       "tests/integration/**",

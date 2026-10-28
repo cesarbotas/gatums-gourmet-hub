@@ -32,7 +32,7 @@ const STATUS_FROM_INT: Record<number, StatusTransacao> = {
  * A API representa `metodo` de 3 formas (ver Postman — "Inconsistência de formato"):
  * inteiro (enum), "cartao_credito" (opcoes) e "cartaocredito" (TransacaoResponse).
  */
-function normalizeMetodo(v: unknown): MetodoPagamento {
+export function normalizeMetodo(v: unknown): MetodoPagamento {
   if (typeof v === "number") return METODO_FROM_INT[v] ?? "pix";
   const s = String(v ?? "").toLowerCase().replace(/[_\s-]/g, "");
   if (s === "cartaodebito") return "cartao_debito";
@@ -40,7 +40,7 @@ function normalizeMetodo(v: unknown): MetodoPagamento {
   return "pix";
 }
 
-function normalizeStatus(v: unknown): StatusTransacao {
+export function normalizeStatus(v: unknown): StatusTransacao {
   if (typeof v === "number") return STATUS_FROM_INT[v] ?? "criada";
   const s = String(v ?? "").toLowerCase().replace(/[_\s-]/g, "");
   const map: Record<string, StatusTransacao> = {
