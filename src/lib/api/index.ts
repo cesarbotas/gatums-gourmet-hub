@@ -10,6 +10,7 @@ export type { Categoria } from "./categorias";
 export * from "./roles";
 export * from "./permissions";
 export * from "./usuarios";
+export * from "./imagens";
 export * from "./clientes";
 export * from "./vendas";
 export * from "./pedidos";

@@ -87,9 +87,12 @@ async function doRefresh(): Promise<boolean> {
 function buildHeaders(
   headers: RequestInit["headers"],
   token: string | null,
+  jsonBody: boolean,
 ): Record<string, string> {
   return {
-    "Content-Type": "application/json",
+    // Com FormData (jsonBody=false) NÃO setamos Content-Type: o browser monta o
+    // multipart com o boundary correto. Forçar JSON aqui quebraria o upload.
+    ...(jsonBody ? { "Content-Type": "application/json" } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(headers as Record<string, string>),
   };
@@ -100,11 +103,14 @@ export async function apiRequest<T>(
   options: RequestInit & { json?: unknown } = {},
 ): Promise<T> {
   const { json, headers, ...rest } = options;
+  // FormData (ex.: upload de imagem) vai cru, sem serializar nem setar JSON.
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const body = json !== undefined ? JSON.stringify(json) : options.body;
+  const jsonBody = !isFormData;
 
   let res = await fetch(`${API_BASE_URL}${path}`, {
     ...rest,
-    headers: buildHeaders(headers, getToken()),
+    headers: buildHeaders(headers, getToken(), jsonBody),
     body,
   });
 
@@ -126,7 +132,7 @@ export async function apiRequest<T>(
       // Refaz a requisição UMA vez com o novo access token.
       res = await fetch(`${API_BASE_URL}${path}`, {
         ...rest,
-        headers: buildHeaders(headers, getToken()),
+        headers: buildHeaders(headers, getToken(), jsonBody),
         body,
       });
     }
