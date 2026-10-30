@@ -86,7 +86,7 @@ terraform {
   }
 
   cloud {
-    organization = "<sua-org-hcp>"
+    organization = "cesarbotas"
     workspaces {
       name = "gatums-gourmet-hub-rulesets"
     }
@@ -97,7 +97,7 @@ terraform {
 ### Setup manual único (fora do Terraform)
 
 1. Criar conta grátis no HCP Terraform (app.terraform.io).
-2. Criar uma **organization** (ex.: `cesarbotas`).
+2. Criar uma **organization** chamada `cesarbotas`.
 3. Criar um **workspace CLI-driven** chamado `gatums-gourmet-hub-rulesets`
    (CLI-driven é o que permite `apply` da máquina local e do Actions).
 
