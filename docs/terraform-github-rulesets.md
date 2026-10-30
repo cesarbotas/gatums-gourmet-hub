@@ -72,7 +72,7 @@ Workflows de CI/CD:
 
 ```
 .github/workflows/
-├── ci.yml          # job "build-test": npm ci -> build -> test em PR p/ develop/release/main
+├── ci.yml          # job "build-test": bun install -> build -> test em PR p/ develop/release/main
 └── terraform.yml   # plan em PR; apply em push na main (+ workflow_dispatch)
 ```
 
