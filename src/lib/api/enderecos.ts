@@ -27,31 +27,37 @@ export interface Endereco {
   principal?: boolean;
 }
 
-interface ViaCepResponse {
+/** Resposta de `GET /enderecos/cep/{cep}` — a API encapsula o ViaCEP. */
+interface CepResponse {
   cep: string;
   logradouro: string;
-  complemento: string;
+  complemento: string | null;
   bairro: string;
-  localidade: string;
-  uf: string;
-  erro?: boolean;
+  cidade: string;
+  estado: string;
 }
 
-/** Consulta ViaCEP e devolve um endereço parcial pronto para mesclar no form. */
+/**
+ * Consulta o CEP pela API (`GET /enderecos/cep/{cep}`, público) e devolve um
+ * endereço parcial pronto para mesclar no form. A API encapsula o ViaCEP; o
+ * front não fala com o ViaCEP diretamente.
+ *
+ * Erros de negócio da API (CEP inválido/não encontrado/serviço indisponível)
+ * vêm como 400 ProblemDetails e são relançados por `apiRequest` como `ApiError`
+ * com a mensagem (`detail`), que o formulário exibe. CEP incompleto é barrado
+ * aqui antes de ir à API.
+ */
 export async function consultarCep(cepRaw: string): Promise<Partial<Endereco>> {
   const cep = cepRaw.replace(/\D/g, "");
   if (cep.length !== 8) throw new Error("CEP inválido");
-  const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-  if (!res.ok) throw new Error("Não foi possível consultar o CEP");
-  const data = (await res.json()) as ViaCepResponse;
-  if (data.erro) throw new Error("CEP não encontrado");
+  const data = await apiRequest<CepResponse>(`/enderecos/cep/${cep}`);
   return {
     cep: data.cep,
     logradouro: data.logradouro,
-    complemento: data.complemento,
+    complemento: data.complemento ?? "",
     bairro: data.bairro,
-    cidade: data.localidade,
-    uf: data.uf,
+    cidade: data.cidade,
+    uf: data.estado,
   };
 }
 
