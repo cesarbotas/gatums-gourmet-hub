@@ -1,25 +1,29 @@
 import { apiRequest } from "./client";
 import { writeStore, readStore } from "./storage";
+import { API_BASE_URL } from "./config";
 
 const SESSION_KEY = "gg.session";
 
-export type UserRole = "admin" | "cliente";
+export type UserRole = "Admin" | "Cliente" | "Gerente";
 
 export interface User {
   id: string;
   nome: string;
   email: string;
   telefone?: string;
-  role: UserRole;
+  roles: UserRole[];
 }
 
 interface Session {
-  token: string;
+  accessToken: string;
+  refreshToken: string;
   user: User;
 }
 
 interface LoginResponse {
-  token: string;
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
   user: User;
 }
 
@@ -29,7 +33,11 @@ export const authService = {
       method: "POST",
       json: { email, senha: password },
     });
-    const session: Session = { token: res.token, user: res.user };
+    const session: Session = {
+      accessToken: res.accessToken,
+      refreshToken: res.refreshToken,
+      user: res.user,
+    };
     writeStore(SESSION_KEY, session);
     return session;
   },
@@ -49,11 +57,43 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
+    const session = authService.getSession();
     try {
-      await apiRequest("/auth/logout", { method: "POST" });
+      if (session?.refreshToken) {
+        await apiRequest("/auth/logout", {
+          method: "POST",
+          json: { refreshToken: session.refreshToken },
+        });
+      }
     } finally {
       if (typeof window !== "undefined") window.localStorage.removeItem(SESSION_KEY);
     }
+  },
+
+  async refresh(): Promise<string | null> {
+    const session = authService.getSession();
+    const refreshToken = session?.refreshToken;
+    if (!refreshToken) return null;
+
+    const resp = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
+
+    if (!resp.ok) {
+      if (typeof window !== "undefined") window.localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+
+    const data = (await resp.json()) as LoginResponse;
+    const next: Session = {
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      user: session.user,
+    };
+    writeStore(SESSION_KEY, next);
+    return next.accessToken;
   },
 
   async me(): Promise<User | null> {
@@ -73,11 +113,13 @@ export const authService = {
   },
 
   isAdmin(): boolean {
-    return authService.getSession()?.user.role === "admin";
+    return (authService.getSession()?.user.roles ?? []).some(
+      (r) => r === "Admin" || r === "Gerente",
+    );
   },
 
   getAuthHeaders(): Record<string, string> {
     const s = authService.getSession();
-    return s ? { Authorization: `Bearer ${s.token}` } : {};
+    return s ? { Authorization: `Bearer ${s.accessToken}` } : {};
   },
 };

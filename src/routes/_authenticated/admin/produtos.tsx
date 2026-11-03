@@ -10,6 +10,7 @@ import {
   Upload,
   Package,
   Boxes,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,9 @@ import {
 import {
   produtosService,
   categoriasService,
+  imagensService,
+  TAMANHO_MAX_IMAGEM,
+  TIPOS_IMAGEM_ACEITOS,
   PAGE_SIZE_OPTIONS,
   type Produto,
   type Categoria,
@@ -63,6 +67,7 @@ function AdminProdutosPage() {
   const [editing, setEditing] = useState<Produto | null>(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [uploadingImg, setUploadingImg] = useState(false);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -96,15 +101,28 @@ function AdminProdutosPage() {
     setView("form");
   };
 
-  const onFile = (file?: File | null) => {
+  const onFile = async (file?: File | null) => {
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("Imagem muito grande (máx 2MB).");
+    if (!TIPOS_IMAGEM_ACEITOS.includes(file.type)) {
+      toast.error("Formato inválido. Use JPEG, PNG ou WebP.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setForm((f) => ({ ...f, foto: String(reader.result) }));
-    reader.readAsDataURL(file);
+    if (file.size > TAMANHO_MAX_IMAGEM) {
+      toast.error("Imagem muito grande (máx 5MB).");
+      return;
+    }
+    setUploadingImg(true);
+    try {
+      const url = await imagensService.upload(file);
+      setForm((f) => ({ ...f, foto: url }));
+      toast.success("Imagem enviada");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao enviar imagem";
+      toast.error(msg);
+    } finally {
+      setUploadingImg(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   };
 
   const addItemCombo = (produtoId: string) => {
@@ -376,15 +394,22 @@ function AdminProdutosPage() {
                     type="button"
                     variant="outline"
                     size="sm"
+                    disabled={uploadingImg}
                     onClick={() => fileRef.current?.click()}
                   >
-                    <Upload className="h-4 w-4" /> Enviar do dispositivo
+                    {uploadingImg ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    {uploadingImg ? "Enviando..." : "Enviar do dispositivo"}
                   </Button>
                   {form.foto && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
+                      disabled={uploadingImg}
                       onClick={() => setForm({ ...form, foto: "" })}
                     >
                       Remover
@@ -394,12 +419,12 @@ function AdminProdutosPage() {
                 <input
                   ref={fileRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   className="hidden"
                   onChange={(e) => onFile(e.target.files?.[0])}
                 />
                 <p className="text-xs text-muted-foreground">
-                  PNG, JPG ou WEBP até 2MB. Você também pode colar uma URL.
+                  PNG, JPG ou WEBP até 5MB. Você também pode colar uma URL.
                 </p>
               </div>
             </div>

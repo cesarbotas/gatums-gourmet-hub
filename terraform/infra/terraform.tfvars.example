@@ -1,0 +1,5 @@
+github_owner = "cesarbotas"
+repository   = "gatums-gourmet-hub"
+# github_token: definir via env TF_VAR_github_token (NUNCA commitar o token real)
+# required_status_checks = ["build-test"]
+# approvals = 1
