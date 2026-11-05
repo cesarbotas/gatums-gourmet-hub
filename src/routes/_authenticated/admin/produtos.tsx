@@ -40,6 +40,7 @@ import {
 import { resolveComboItens } from "@/lib/combo-display";
 import { ComboItensList } from "@/components/ComboItensList";
 import { CategoriaCombobox } from "@/components/CategoriaCombobox";
+import { PrecoInput } from "@/components/PrecoInput";
 
 export const Route = createFileRoute("/_authenticated/admin/produtos")({
   component: AdminProdutosPage,
@@ -200,7 +201,62 @@ function AdminProdutosPage() {
 
       {view === "list" ? (
         <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-          <table className="w-full text-sm">
+          {/* Lista em cartões (celular) */}
+          <div className="md:hidden">
+            {items.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-start gap-3 border-t border-border p-4 first:border-t-0"
+              >
+                <img
+                  src={p.foto}
+                  alt=""
+                  className="h-14 w-14 shrink-0 rounded-md object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-foreground">{p.nome}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {p.categoriaNome} · {p.tipo === "combo" ? "Combo" : "Simples"}
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-foreground">
+                      R$ {p.preco.toFixed(2)}
+                    </span>
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                        p.disponivel
+                          ? "bg-accent/15 text-accent"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {p.disponivel ? "Disponível" : "Esgotado"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-col gap-1">
+                  <Button size="icon" variant="ghost" onClick={() => startEdit(p)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => remove(p)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {items.length === 0 && (
+              <p className="px-4 py-10 text-center text-muted-foreground">
+                Nenhum produto cadastrado.
+              </p>
+            )}
+          </div>
+
+          {/* Tabela (desktop) */}
+          <table className="hidden w-full text-sm md:table">
             <thead className="bg-secondary/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">Produto</th>
@@ -349,15 +405,12 @@ function AdminProdutosPage() {
           </div>
 
           <div>
-            <Label htmlFor="preco">Preço (R$)</Label>
-            <Input
+            <Label htmlFor="preco">Preço</Label>
+            <PrecoInput
               id="preco"
-              type="number"
-              step="0.01"
-              min="0"
               required
               value={form.preco}
-              onChange={(e) => setForm({ ...form, preco: Number(e.target.value) })}
+              onChange={(v) => setForm({ ...form, preco: v })}
             />
           </div>
 
