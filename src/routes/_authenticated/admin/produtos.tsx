@@ -40,6 +40,7 @@ import {
 import { resolveComboItens } from "@/lib/combo-display";
 import { ComboItensList } from "@/components/ComboItensList";
 import { CategoriaCombobox } from "@/components/CategoriaCombobox";
+import { PrecoInput } from "@/components/PrecoInput";
 
 export const Route = createFileRoute("/_authenticated/admin/produtos")({
   component: AdminProdutosPage,
@@ -349,15 +350,12 @@ function AdminProdutosPage() {
           </div>
 
           <div>
-            <Label htmlFor="preco">Preço (R$)</Label>
-            <Input
+            <Label htmlFor="preco">Preço</Label>
+            <PrecoInput
               id="preco"
-              type="number"
-              step="0.01"
-              min="0"
               required
               value={form.preco}
-              onChange={(e) => setForm({ ...form, preco: Number(e.target.value) })}
+              onChange={(v) => setForm({ ...form, preco: v })}
             />
           </div>
 
