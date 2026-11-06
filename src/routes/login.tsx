@@ -1,3 +1,4 @@
+import { authService, userIsAdmin } from "@/lib/api/auth";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
