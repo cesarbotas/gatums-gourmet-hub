@@ -27,6 +27,37 @@ interface LoginResponse {
   user: User;
 }
 
+const ADMIN_ROLES = ["admin", "administrador", "gerente"];
+
+function rolesFromToken(token?: string): string[] {
+  if (!token) return [];
+  try {
+    const part = token.split(".")[1];
+    const json = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+    const out: string[] = [];
+    for (const [k, v] of Object.entries(json)) {
+      if (/role|perfil/i.test(k)) out.push(...(Array.isArray(v) ? v : [v]).map(String));
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Detecta perfil admin aceitando roles[]/role/perfil (qualquer caixa) e claims do JWT. */
+export function userIsAdmin(user: User | null, token?: string): boolean {
+  if (!user && !token) return false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const u = (user ?? {}) as any;
+  const list: string[] = [
+    ...(Array.isArray(u.roles) ? u.roles : []),
+    ...(u.role ? [u.role] : []),
+    ...(u.perfil ? [u.perfil] : []),
+    ...rolesFromToken(token),
+  ].map((r) => String(r).toLowerCase());
+  return list.some((r) => ADMIN_ROLES.includes(r));
+}
+
 export const authService = {
   async login(email: string, password: string): Promise<Session> {
     const res = await apiRequest<LoginResponse>("/auth/login", {
@@ -113,9 +144,8 @@ export const authService = {
   },
 
   isAdmin(): boolean {
-    return (authService.getSession()?.user.roles ?? []).some(
-      (r) => r === "Admin" || r === "Gerente",
-    );
+    const s = authService.getSession();
+    return userIsAdmin(s?.user ?? null, s?.accessToken);
   },
 
   getAuthHeaders(): Record<string, string> {
