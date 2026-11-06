@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { authService, type User } from "@/lib/api/auth";
+import { authService, userIsAdmin, type User } from "@/lib/api/auth";
 
 interface AuthContextValue {
   user: User | null;
@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isAuthenticated: !!user,
-        isAdmin: (user?.roles ?? []).some((r) => r === "Admin" || r === "Gerente"),
+        isAdmin: userIsAdmin(user, authService.getSession()?.accessToken),
         ready,
         login,
         register,
