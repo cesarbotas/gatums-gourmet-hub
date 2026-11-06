@@ -27,7 +27,7 @@ export function LoginPage() {
     try {
       const u = await login(email, password);
       toast.success("Bem-vindo de volta!");
-      const admin = (u.roles ?? []).some((r) => r === "Admin" || r === "Gerente");
+      const admin = userIsAdmin(u, authService.getSession()?.accessToken);
       router.navigate({ to: admin ? "/admin" : "/minha-conta" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao entrar");
