@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isAuthenticated: !!user,
-        isAdmin: (user?.roles ?? []).some((r) => r === "Admin" || r === "Gerente"),
+        isAdmin: userIsAdmin(user, authService.getSession()?.accessToken),
         ready,
         login,
         register,
