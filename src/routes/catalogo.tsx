@@ -18,6 +18,8 @@ import { resolveComboItens } from "@/lib/combo-display";
 import { ComboItensList } from "@/components/ComboItensList";
 import { CategoriaCombobox } from "@/components/CategoriaCombobox";
 import { useAuth } from "@/lib/auth-context";
+import { collectPages, paginateItems } from "@/lib/page-data";
+import { SearchPagination } from "@/components/SearchPagination";
 import { useCart } from "@/lib/cart-context";
 
 export const Route = createFileRoute("/catalogo")({
@@ -39,6 +41,10 @@ function CatalogoPage() {
   const [items, setItems] = useState<Produto[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [categoriaId, setCategoriaId] = useState<string>("todas");
   const [tipo, setTipo] = useState<"todos" | "simples" | "combo">("todos");
   const [ordem, setOrdem] = useState<Ordem>("nome");
@@ -50,7 +56,7 @@ function CatalogoPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    produtosService.list({ pageSize: 500 }).then((r) => setItems(r.items));
+    collectPages((page) => produtosService.list({ page, pageSize: 100 })).then(setItems).catch((err) => setError(err instanceof Error ? err.message : "Erro ao carregar produtos.")).finally(() => setLoading(false));
     categoriasService
       .list({ apenasAtivas: true, pageSize: 500 })
       .then((r) => setCategorias(r.items));
@@ -86,6 +92,9 @@ function CatalogoPage() {
     });
     return list;
   }, [items, search, categoriaId, tipo, soDisponiveis, maxPreco, ordem]);
+
+  const paginated = paginateItems(visiveis, page, pageSize);
+  useEffect(() => { setPage(1); }, [search, categoriaId, tipo, soDisponiveis, maxPreco, ordem]);
 
   const handleAdd = (p: Produto) => {
     if (!isAuthenticated) {
@@ -208,7 +217,7 @@ function CatalogoPage() {
         </section>
 
         <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
-          {visiveis.length === 0 ? (
+          {loading ? <p role="status" className="text-muted-foreground">Carregando produtos...</p> : error ? <p role="alert" className="text-destructive">{error}</p> : visiveis.length === 0 ? (
             <div className="py-16 text-center">
               <p className="text-muted-foreground">
                 Nenhum produto encontrado com os filtros atuais.
@@ -219,7 +228,7 @@ function CatalogoPage() {
             </div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {visiveis.map((p) => (
+              {paginated.items.map((p) => (
                 <article
                   key={p.id}
                   className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-shadow hover:shadow-warm"
@@ -269,6 +278,7 @@ function CatalogoPage() {
               ))}
             </div>
           )}
+          {!loading && !error && <SearchPagination page={paginated.page} pageSize={pageSize} total={visiveis.length} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1); }} />}
         </section>
       </main>
       <Footer />
