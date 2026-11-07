@@ -40,9 +40,12 @@ import {
 import { resolveComboItens } from "@/lib/combo-display";
 import { ComboItensList } from "@/components/ComboItensList";
 import { CategoriaCombobox } from "@/components/CategoriaCombobox";
+import { SearchPagination } from "@/components/SearchPagination";
+import { pageHead } from "@/lib/route-head";
 import { PrecoInput } from "@/components/PrecoInput";
 
 export const Route = createFileRoute("/_authenticated/admin/produtos")({
+  head: () => pageHead("Produtos — Gatums Gourmet", "Pesquise produtos por nome, categoria, tipo e disponibilidade."),
   component: AdminProdutosPage,
 });
 
@@ -63,6 +66,12 @@ function AdminProdutosPage() {
   const [allProdutos, setAllProdutos] = useState<Produto[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState("todas");
+  const [filterType, setFilterType] = useState<TipoProduto | "todos">("todos");
+  const [filterAvailable, setFilterAvailable] = useState("todos");
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState("");
   const [pageSize, setPageSize] = useState(10);
   const [view, setView] = useState<"list" | "form">("list");
   const [editing, setEditing] = useState<Produto | null>(null);
@@ -79,16 +88,15 @@ function AdminProdutosPage() {
   }, []);
 
   const load = () => {
-    produtosService.list({ page, pageSize }).then((r) => {
-      setItems(r.items);
-      setTotal(r.total);
-    });
-    produtosService.list({ pageSize: 500 }).then((r) => setAllProdutos(r.items));
+    setListLoading(true); setListError("");
+    produtosService.list({ page, pageSize, search, categoriaId: filterCategory === "todas" ? undefined : Number(filterCategory), tipo: filterType, disponivel: filterAvailable === "todos" ? undefined : filterAvailable === "true" }).then((r) => {
+      setItems(r.items); setTotal(r.total);
+    }).catch((err) => { setItems([]); setTotal(0); setListError(err instanceof Error ? err.message : "Erro ao pesquisar produtos."); }).finally(() => setListLoading(false));
   };
 
-  useEffect(load, [page, pageSize]);
+  useEffect(load, [page, pageSize, search, filterCategory, filterType, filterAvailable]);
+  useEffect(() => { produtosService.list({ pageSize: 500 }).then((r) => setAllProdutos(r.items)).catch(() => setAllProdutos([])); }, []);
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const startCreate = () => {
     setEditing(null);
@@ -199,6 +207,15 @@ function AdminProdutosPage() {
         )}
       </div>
 
+      {view === "list" && <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Input aria-label="Pesquisar produtos" placeholder="Buscar produto..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+        <CategoriaCombobox categorias={categorias} value={filterCategory} onChange={(value) => { setFilterCategory(value); setPage(1); }} allOption={{ value: "todas", label: "Todas as categorias" }} />
+        <Select value={filterType} onValueChange={(value) => { setFilterType(value as typeof filterType); setPage(1); }}><SelectTrigger aria-label="Filtrar tipo"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todos os tipos</SelectItem><SelectItem value="simples">Simples</SelectItem><SelectItem value="combo">Combo</SelectItem></SelectContent></Select>
+        <Select value={filterAvailable} onValueChange={(value) => { setFilterAvailable(value); setPage(1); }}><SelectTrigger aria-label="Filtrar disponibilidade"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todos os status</SelectItem><SelectItem value="true">Disponível</SelectItem><SelectItem value="false">Esgotado</SelectItem></SelectContent></Select>
+        {(search || filterCategory !== "todas" || filterType !== "todos" || filterAvailable !== "todos") && <Button variant="ghost" onClick={() => { setSearch(""); setFilterCategory("todas"); setFilterType("todos"); setFilterAvailable("todos"); setPage(1); }}><X className="h-4 w-4" /> Limpar filtros</Button>}
+        {listLoading && <p role="status" className="text-sm text-muted-foreground">Pesquisando...</p>}
+        {listError && <p role="alert" className="text-sm text-destructive sm:col-span-2">{listError}</p>}
+      </div>}
       {view === "list" ? (
         <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
           {/* Lista em cartões (celular) */}
@@ -234,7 +251,7 @@ function AdminProdutosPage() {
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => startEdit(p)}>
+                  <Button aria-label={`Editar produto ${p.nome}`} title="Editar produto" size="icon" variant="ghost" onClick={() => startEdit(p)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button
@@ -309,7 +326,7 @@ function AdminProdutosPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => startEdit(p)}>
+                      <Button aria-label={`Editar produto ${p.nome}`} title="Editar produto" size="icon" variant="ghost" onClick={() => startEdit(p)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
@@ -334,11 +351,10 @@ function AdminProdutosPage() {
             </tbody>
           </table>
 
-          <Pagination
+          <SearchPagination
             page={page}
             pageSize={pageSize}
             total={total}
-            totalPages={totalPages}
             onPage={setPage}
             onPageSize={(s) => {
               setPageSize(s);
@@ -555,59 +571,6 @@ function AdminProdutosPage() {
           </div>
         </form>
       )}
-    </div>
-  );
-}
-
-function Pagination({
-  page,
-  pageSize,
-  total,
-  totalPages,
-  onPage,
-  onPageSize,
-}: {
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-  onPage: (n: number) => void;
-  onPageSize: (n: number) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-secondary/30 px-4 py-3 text-sm">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <span>Mostrando</span>
-        <Select value={String(pageSize)} onValueChange={(v) => onPageSize(Number(v))}>
-          <SelectTrigger className="h-8 w-20">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PAGE_SIZE_OPTIONS.map((s) => (
-              <SelectItem key={s} value={String(s)}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <span>de {total} registros</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button size="icon" variant="outline" disabled={page <= 1} onClick={() => onPage(page - 1)}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <span className="text-muted-foreground">
-          Página <strong className="text-foreground">{page}</strong> de {totalPages}
-        </span>
-        <Button
-          size="icon"
-          variant="outline"
-          disabled={page >= totalPages}
-          onClick={() => onPage(page + 1)}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
     </div>
   );
 }

@@ -1,3 +1,5 @@
+import { appendPageParams, mapPaginated, type PaginatedResponse } from "./config";
+import { collectPages } from "@/lib/page-data";
 import { apiRequest } from "./client";
 import type { CartItem } from "./carrinho";
 import {
@@ -99,6 +101,12 @@ function mapPedido(raw: any): Pedido {
 }
 
 export const pedidosService = {
+  async list(params: { page?: number; pageSize?: number } = {}): Promise<PaginatedResponse<Pedido>> {
+    const qs = new URLSearchParams();
+    const fallback = appendPageParams(qs, params);
+    const res = await apiRequest<unknown>(`/pedidos?${qs}`);
+    return mapPaginated(res, mapPedido, fallback);
+  },
   async listAll(): Promise<Pedido[]> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await apiRequest<any>("/pedidos?pagina=1&tamanho=100");

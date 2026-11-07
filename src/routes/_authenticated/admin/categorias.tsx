@@ -14,9 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { pageHead } from "@/lib/route-head";
 import { categoriasService, PAGE_SIZE_OPTIONS, type Categoria } from "@/lib/api";
 
 export const Route = createFileRoute("/_authenticated/admin/categorias")({
+  head: () => pageHead("Categorias — Gatums Gourmet", "Pesquise e gerencie as categorias dos produtos."),
   component: AdminCategoriasPage,
 });
 
@@ -30,6 +32,8 @@ function AdminCategoriasPage() {
   const [items, setItems] = useState<Categoria[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [onlyActive, setOnlyActive] = useState(false);
   const [pageSize, setPageSize] = useState(10);
   const [view, setView] = useState<"list" | "form">("list");
   const [editing, setEditing] = useState<Categoria | null>(null);
@@ -37,13 +41,13 @@ function AdminCategoriasPage() {
   const [saving, setSaving] = useState(false);
 
   const load = () => {
-    categoriasService.list({ page, pageSize }).then((r) => {
+    categoriasService.list({ page, pageSize, search, apenasAtivas: onlyActive || undefined }).then((r) => {
       setItems(r.items);
       setTotal(r.total);
-    });
+    }).catch((err) => { setItems([]); setTotal(0); toast.error(err instanceof Error ? err.message : "Erro ao pesquisar categorias."); });
   };
 
-  useEffect(load, [page, pageSize]);
+  useEffect(load, [page, pageSize, search, onlyActive]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -109,9 +113,14 @@ function AdminCategoriasPage() {
         )}
       </div>
 
+      {view === "list" && <div className="mt-6 flex flex-wrap items-center gap-3">
+        <Input aria-label="Pesquisar categorias" className="w-full sm:max-w-sm" placeholder="Buscar categoria..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+        <Switch id="filter-active-category" checked={onlyActive} onCheckedChange={(value) => { setOnlyActive(value); setPage(1); }} /><Label htmlFor="filter-active-category">Apenas ativas</Label>
+        {(search || onlyActive) && <Button variant="ghost" onClick={() => { setSearch(""); setOnlyActive(false); setPage(1); }}><X className="h-4 w-4" /> Limpar filtros</Button>}
+      </div>}
       {view === "list" ? (
         <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead className="bg-secondary/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">Nome</th>
@@ -161,7 +170,7 @@ function AdminCategoriasPage() {
                 </tr>
               )}
             </tbody>
-          </table>
+          </table></div>
 
           <Pagination
             page={page}

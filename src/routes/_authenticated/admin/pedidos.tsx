@@ -19,6 +19,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { SearchPagination } from "@/components/SearchPagination";
+import { collectPages, paginateItems } from "@/lib/page-data";
+import { pageHead } from "@/lib/route-head";
+import { ETAPAS_ORDEM } from "@/lib/pedido-flow";
 import { PedidoTimeline } from "@/components/PedidoTimeline";
 import { pedidosService, type Pedido } from "@/lib/api/pedidos";
 import {
@@ -30,18 +35,28 @@ import {
 import type { EntregaTipo } from "@/lib/pedido-flow";
 
 export const Route = createFileRoute("/_authenticated/admin/pedidos")({
+  head: () => pageHead("Pedidos — Gatums Gourmet", "Pesquise pedidos por cliente, código, etapa e período."),
   component: AdminPedidosPage,
 });
 
 function AdminPedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("todos");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [observacao, setObservacao] = useState("");
   const [entregaTipo, setEntregaTipo] = useState<EntregaTipo>("transporte");
   const [loading, setLoading] = useState<string | null>(null);
 
   const reload = useCallback(() => {
-    pedidosService.listAll().then(setPedidos).catch(() => setPedidos([]));
+    setListLoading(true); setListError("");
+    collectPages((page) => pedidosService.list({ page, pageSize: 100 })).then(setPedidos).catch((err) => setListError(err instanceof Error ? err.message : "Erro ao carregar pedidos.")).finally(() => setListLoading(false));
   }, []);
 
   useEffect(reload, [reload]);
@@ -66,6 +81,12 @@ function AdminPedidosPage() {
     }
   };
 
+  const filtered = pedidos.filter((p) => {
+    const query = search.trim().toLowerCase();
+    return (!query || `${p.id} ${p.clienteNome}`.toLowerCase().includes(query)) && (status === "todos" || etapaAtual(p.timeline) === status) && (!start || p.data.slice(0, 10) >= start) && (!end || p.data.slice(0, 10) <= end);
+  });
+  const paginated = paginateItems(filtered, page, pageSize);
+  useEffect(() => { setPage(1); }, [search, status, start, end]);
   const pendentes = pedidos.filter((p) => etapaAtual(p.timeline) !== "finalizado").length;
 
   return (
@@ -82,13 +103,20 @@ function AdminPedidosPage() {
         </span>
       </div>
 
-      {pedidos.length === 0 ? (
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Input aria-label="Pesquisar pedidos" placeholder="Cliente ou código do pedido..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Select value={status} onValueChange={setStatus}><SelectTrigger aria-label="Filtrar etapa"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todas as etapas</SelectItem>{ETAPAS_ORDEM.map((stage) => <SelectItem key={stage} value={stage}>{statusPedidoLabel(stage)}</SelectItem>)}</SelectContent></Select>
+        <div><Label htmlFor="order-start">Data inicial</Label><Input id="order-start" type="date" value={start} max={end || undefined} onChange={(e) => setStart(e.target.value)} /></div>
+        <div><Label htmlFor="order-end">Data final</Label><Input id="order-end" type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} /></div>
+        {(search || status !== "todos" || start || end) && <Button variant="ghost" onClick={() => { setSearch(""); setStatus("todos"); setStart(""); setEnd(""); }}>Limpar filtros</Button>}
+      </div>
+      {listLoading ? <p role="status" className="mt-6 text-muted-foreground">Carregando pedidos...</p> : listError ? <p role="alert" className="mt-6 text-destructive">{listError}</p> : filtered.length === 0 ? (
         <div className="mt-8 rounded-2xl border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
           Nenhum pedido registrado ainda.
         </div>
       ) : (
         <ul className="mt-6 space-y-3">
-          {pedidos.map((p) => {
+          {paginated.items.map((p) => {
             const atual = etapaAtual(p.timeline);
             const aberto = expanded === p.id;
             const acao = proximaAcaoLabel(p.timeline, "admin");
@@ -97,9 +125,9 @@ function AdminPedidosPage() {
 
             return (
               <li key={p.id} className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-                <button
+                <Button variant="ghost"
                   type="button"
-                  className="flex w-full items-center gap-4 px-4 py-4 text-left hover:bg-secondary/40"
+                  className="flex h-auto w-full justify-start whitespace-normal items-center gap-3 rounded-none px-4 py-4 text-left hover:bg-secondary/40"
                   onClick={() => setExpanded(aberto ? null : p.id)}
                 >
                   <Package className="h-5 w-5 shrink-0 text-accent" />
@@ -121,7 +149,7 @@ function AdminPedidosPage() {
                   ) : (
                     <ChevronDown className="h-5 w-5 text-muted-foreground" />
                   )}
-                </button>
+                </Button>
 
                 {aberto && (
                   <div className="border-t border-border px-4 py-5">
@@ -219,6 +247,7 @@ function AdminPedidosPage() {
           })}
         </ul>
       )}
+      {!listLoading && !listError && <SearchPagination page={paginated.page} pageSize={pageSize} total={filtered.length} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1); }} />}
     </div>
   );
 }
