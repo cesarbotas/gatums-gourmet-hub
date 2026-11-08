@@ -157,6 +157,14 @@ describe("clientesService.update", () => {
 // --- mapCliente (via list): endereco aninhado estado→uf, cidade ------------
 
 describe("clientesService — mapeamento de cliente", () => {
+  it("envia a pesquisa e a página solicitada à API", async () => {
+    fetchMock.mockResolvedValueOnce(fakeResponse(200, { itens: [], totalRegistros: 0 }));
+    await clientesService.list({ search: "Ana", page: 2, pageSize: 25 });
+    const url = new URL(urlOf(fetchMock.mock.calls[0]));
+    expect(url.searchParams.get("search")).toBe("Ana");
+    expect(url.searchParams.get("pagina")).toBe("2");
+    expect(url.searchParams.get("tamanho")).toBe("25");
+  });
   it("lê endereco aninhado (estado→uf) e cidade da raiz", async () => {
     fetchMock.mockResolvedValueOnce(
       fakeResponse(200, {

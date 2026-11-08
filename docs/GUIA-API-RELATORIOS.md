@@ -5,17 +5,17 @@ Base: `/api/v1`, JWT Bearer, perfil **admin** em todos os endpoints. Valores mon
 ## Já existe
 
 ### GET /relatorios/vendas/resumo
-Últimos 30 dias.
+A coleção Postman enviada confirma este endpoint, mas não documenta parâmetros de período nem uma resposta salva. O formato abaixo corresponde ao contrato documentado nos testes de integração existentes; não é um resultado capturado agora.
 ```json
 {
-  "totalFaturamento": 1234.50,
+  "faturamento": 1234.50,
   "totalPedidos": 42,
-  "ticket": 29.39,
-  "topProdutos": [{ "nome": "X-Burger", "quantidade": 18, "total": 540.00 }],
-  "serieDiaria": [{ "dia": "2026-10-08", "total": 120.00 }]
+  "ticketMedio": 29.39,
+  "topProdutos": [{ "produtoId": "uuid", "nome": "X-Burger", "quantidade": 18, "total": 540.00 }],
+  "serieDiaria": [{ "data": "2026-10-08", "faturamento": 120.00, "pedidos": 4 }]
 }
 ```
-Considerar apenas pedidos com pagamento aprovado.
+O front mostra os totais retornados pela API, sem recalculá-los a partir do ranking. O período e os critérios de faturamento são definidos pela API. A pesquisa/paginação do ranking é local e não altera os totais. Os relatórios abaixo continuam sendo propostas, não endpoints confirmados.
 
 ## Propostos (ordem sugerida de prioridade)
 
@@ -56,7 +56,7 @@ Converter para fuso `America/Sao_Paulo` antes de agrupar.
 ```
 
 ### 8. GET /relatorios/pedidos/cancelados?dataInicio=&dataFim= (paginado)
-Aceita `Paginacao.NumeroPagina` e `Paginacao.QuantidadeRegistros`.
+Sugestão: aceitar `pagina` e `tamanho`, como os serviços atuais do front.
 ```json
 { "items": [{ "pedidoId": "uuid", "data": "...", "cliente": "...", "total": 45.0, "motivo": "PagamentoExpirado" }], "totalRegistros": 5 }
 ```
@@ -66,5 +66,6 @@ Aceita `Paginacao.NumeroPagina` e `Paginacao.QuantidadeRegistros`.
 
 ## Integração no front
 - Serviço: `src/lib/api/vendas.ts` (adicionar um método por endpoint).
-- Tela: `src/routes/_authenticated/admin/relatorios.tsx` — ao implementar, trocar o status do card de "Proposto" para "Disponível" e renderizar o resultado.
+- Componente implementado: `src/components/SalesSummary.tsx`, com indicadores, gráfico diário, ranking pesquisável/paginado, atualização e estados de erro/vazio.
+- Tela: `src/routes/_authenticated/admin/relatorios.tsx` — somente o resumo está confirmado como disponível.
 - Erros 401/403 já tratados por `apiRequest`.
