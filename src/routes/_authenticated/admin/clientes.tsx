@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Plus, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,11 +12,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { clientesService, PAGE_SIZE_OPTIONS, type Cliente } from "@/lib/api";
+import { clientesService, rolesService, usuariosService, type Role, type Usuario, type Cliente } from "@/lib/api";
 import { enderecosService, type Endereco } from "@/lib/api/enderecos";
 import { EnderecoForm, emptyEndereco } from "@/components/EnderecoForm";
+import { SearchPagination } from "@/components/SearchPagination";
+import { findCustomerAccount, saveCustomerAccount } from "@/lib/customer-account";
+import { pageHead } from "@/lib/route-head";
 
 export const Route = createFileRoute("/_authenticated/admin/clientes")({
+  head: () => pageHead("Clientes — Gatums Gourmet", "Pesquise clientes e gerencie os perfis de acesso."),
   component: AdminClientesPage,
 });
 
@@ -31,6 +35,16 @@ function AdminClientesPage() {
   const [items, setItems] = useState<Cliente[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [users, setUsers] = useState<Usuario[]>([]);
+  const [roleId, setRoleId] = useState("");
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [accessLoading, setAccessLoading] = useState(true);
+  const [accessError, setAccessError] = useState("");
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState("");
   const [pageSize, setPageSize] = useState(10);
   const [view, setView] = useState<"list" | "form">("list");
   const [editing, setEditing] = useState<Cliente | null>(null);
@@ -38,47 +52,75 @@ function AdminClientesPage() {
   const [endereco, setEndereco] = useState<Endereco>(emptyEndereco);
 
   const load = () => {
-    clientesService.list({ page, pageSize }).then((r) => {
-      setItems(r.items);
-      setTotal(r.total);
-    });
+    setListLoading(true); setListError("");
+    clientesService.list({ page, pageSize, search }).then((r) => {
+      setItems(r.items); setTotal(r.total);
+    }).catch((err) => { setItems([]); setTotal(0); setListError(err instanceof Error ? err.message : "Erro ao pesquisar clientes."); }).finally(() => setListLoading(false));
   };
-  useEffect(load, [page, pageSize]);
+  useEffect(load, [page, pageSize, search]);
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const loadAccess = async () => {
+    setAccessLoading(true); setAccessError("");
+    try {
+      const [availableRoles, accounts] = await Promise.all([rolesService.list(), usuariosService.list()]);
+      setRoles(availableRoles); setUsers(accounts);
+    } catch (err) { setAccessError(err instanceof Error ? err.message : "Não foi possível carregar os perfis."); }
+    finally { setAccessLoading(false); }
+  };
+  useEffect(() => { void loadAccess(); }, []);
+  const account = findCustomerAccount(users, form.email);
+  const defaultRole = roles.find((role) => role.nome.toLowerCase() === "cliente");
+  const startEdit = async (customer: Cliente) => {
+    setEditing(customer); setForm(customer); setPassword("");
+    const linked = findCustomerAccount(users, customer.email);
+    const role = roles.find((role) => linked?.roles?.some((name) => name.toLowerCase() === role.nome.toLowerCase()));
+    setRoleId(String(role?.id ?? defaultRole?.id ?? ""));
+    setEndereco(customer.endereco ?? { ...emptyEndereco, cidade: customer.cidade });
+    setView("form");
+    try {
+      const address = await enderecosService.getPrincipal(customer.id);
+      if (address) setEndereco(address);
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Não foi possível carregar o endereço."); }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const payload = { ...form, cidade: endereco.cidade || form.cidade };
-      let cli: Cliente;
-      if (editing) {
-        cli = await clientesService.update(editing.id, payload);
-        toast.success("Cliente atualizado");
-      } else {
-        // A API exige endereço completo no cadastro do cliente
-        if (!endereco.cep || !endereco.logradouro || !endereco.numero || !endereco.bairro || !endereco.cidade || !endereco.uf) {
-          toast.error("Preencha o endereço completo (use a busca por CEP)");
-          return;
-        }
-        cli = await clientesService.create({ ...payload, endereco });
-        toast.success("Cliente criado");
-      }
-      if (endereco.cep && endereco.logradouro) {
-        await enderecosService.save(cli.id, { ...endereco, principal: true });
-      }
-      setView("list");
-      load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro");
+    if (saving) return;
+    if (!roleId || accessLoading || accessError) { toast.error("Carregue e selecione o perfil do cliente."); return; }
+    if (!editing && (!endereco.cep || !endereco.logradouro || !endereco.numero || !endereco.bairro || !endereco.cidade || !endereco.uf)) {
+      toast.error("Preencha o endereço completo (use a busca por CEP)"); return;
     }
+    setSaving(true);
+    let customerSaved = false;
+    try {
+      // Preflight prevents a missing password from saving a half-complete registration.
+      const accounts = await usuariosService.list();
+      setUsers(accounts);
+      if (!findCustomerAccount(accounts, form.email) && !password.trim()) {
+        throw new Error("Informe uma senha inicial para criar o usuário deste cliente.");
+      }
+      const payload = { ...form, cidade: endereco.cidade || form.cidade };
+      const customer = editing
+        ? await clientesService.update(editing.id, payload)
+        : await clientesService.create({ ...payload, endereco });
+      customerSaved = true;
+      // Keep the returned ID so a retry cannot create a duplicate CRM customer.
+      setEditing(customer);
+      await saveCustomerAccount({ nome: form.nome, email: form.email, telefone: form.telefone, roleId: Number(roleId), senha: password });
+      if (endereco.cep && endereco.logradouro) {
+        await enderecosService.save(customer.id, { ...endereco, principal: true });
+      }
+      toast.success("Cliente e perfil salvos");
+      setPassword(""); setView("list"); load(); await loadAccess();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erro ao salvar";
+      toast.error(customerSaved ? `Dados do cliente salvos, mas há uma pendência: ${message}. Tente salvar novamente.` : message);
+    } finally { setSaving(false); }
   };
 
   const remove = async (c: Cliente) => {
     if (!confirm(`Excluir cliente "${c.nome}"?`)) return;
-    await clientesService.remove(c.id);
-    toast.success("Cliente excluído");
-    load();
+    try { await clientesService.remove(c.id); toast.success("Cliente excluído"); load(); } catch (err) { toast.error(err instanceof Error ? err.message : "Erro ao excluir cliente."); }
   };
 
   return (
@@ -95,7 +137,7 @@ function AdminClientesPage() {
             onClick={() => {
               setEditing(null);
               setForm(empty);
-              setEndereco(emptyEndereco);
+              setEndereco(emptyEndereco); setPassword(""); setRoleId(String(defaultRole?.id ?? ""));
               setView("form");
             }}
           >
@@ -108,15 +150,22 @@ function AdminClientesPage() {
         )}
       </div>
 
+      {view === "list" && <div className="mt-6 flex flex-wrap items-center gap-3">
+        <Input aria-label="Pesquisar clientes" className="w-full sm:max-w-sm" placeholder="Buscar cliente por nome ou e-mail..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+        {search && <Button variant="ghost" onClick={() => { setSearch(""); setPage(1); }}><X className="h-4 w-4" /> Limpar filtros</Button>}
+        {listLoading && <p role="status" className="text-sm text-muted-foreground">Pesquisando...</p>}
+        {listError && <p role="alert" className="text-sm text-destructive">{listError}</p>}
+      </div>}
       {view === "list" ? (
         <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead className="bg-secondary/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">Nome</th>
                 <th className="px-4 py-3">E-mail</th>
                 <th className="px-4 py-3">Telefone</th>
                 <th className="px-4 py-3">Cidade</th>
+                <th className="px-4 py-3">Perfil</th>
                 <th className="px-4 py-3 text-right">Ações</th>
               </tr>
             </thead>
@@ -127,25 +176,23 @@ function AdminClientesPage() {
                   <td className="px-4 py-3 text-muted-foreground">{c.email}</td>
                   <td className="px-4 py-3 text-muted-foreground">{c.telefone}</td>
                   <td className="px-4 py-3 text-muted-foreground">{c.cidade}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{accessLoading ? "Carregando..." : accessError ? "Indisponível" : findCustomerAccount(users, c.email)?.roles?.join(", ") || "Sem usuário"}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex gap-1">
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={async () => {
-                          setEditing(c);
-                          const { id: _i, criadoEm: _ce, ...rest } = c;
-                          setForm(rest);
-                          const end = await enderecosService.getPrincipal(c.id);
-                          setEndereco(end ?? { ...emptyEndereco, cidade: c.cidade });
-                          setView("form");
-                        }}
+                        aria-label={`Editar cliente ${c.nome}`}
+                        title="Editar cliente"
+                        onClick={() => startEdit(c)}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
                         size="icon"
                         variant="ghost"
+                        aria-label={`Excluir cliente ${c.nome}`}
+                        title="Excluir cliente"
                         onClick={() => remove(c)}
                         className="text-destructive hover:text-destructive"
                       >
@@ -157,59 +204,14 @@ function AdminClientesPage() {
               ))}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
                     Nenhum cliente cadastrado.
                   </td>
                 </tr>
               )}
             </tbody>
-          </table>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-secondary/30 px-4 py-3 text-sm">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <span>Mostrando</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(v) => {
-                  setPageSize(Number(v));
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className="h-8 w-20">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAGE_SIZE_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={String(s)}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span>de {total} registros</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="icon"
-                variant="outline"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-muted-foreground">
-                Página <strong className="text-foreground">{page}</strong> de {totalPages}
-              </span>
-              <Button
-                size="icon"
-                variant="outline"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          </table></div>
+          <SearchPagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1); }} />
         </div>
       ) : (
         <form
@@ -249,6 +251,19 @@ function AdminClientesPage() {
               onChange={(e) => setForm({ ...form, telefone: e.target.value })}
             />
           </div>
+          <div>
+            <Label htmlFor="customer-role">Perfil de acesso</Label>
+            <Select value={roleId} onValueChange={setRoleId} disabled={accessLoading || !!accessError}>
+              <SelectTrigger id="customer-role"><SelectValue placeholder="Selecione um perfil" /></SelectTrigger>
+              <SelectContent>{roles.map((role) => <SelectItem key={role.id} value={String(role.id)}>{role.nome}</SelectItem>)}</SelectContent>
+            </Select>
+            {account && <p className="mt-2 text-xs text-muted-foreground">Perfil atual: {account.roles?.join(", ") || "Sem perfil"}</p>}
+            {accessError && <><p role="alert" className="mt-2 text-xs text-destructive">{accessError}</p><Button type="button" variant="outline" size="sm" onClick={loadAccess}>Tentar novamente</Button></>}
+          </div>
+          {!account && !accessLoading && !accessError && <div>
+            <Label htmlFor="customer-password">Senha inicial do usuário</Label>
+            <Input id="customer-password" type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          </div>}
           <div className="md:col-span-2">
             <h3 className="mt-2 text-sm font-semibold text-foreground">Endereço</h3>
             <p className="text-xs text-muted-foreground">
@@ -259,7 +274,7 @@ function AdminClientesPage() {
             </div>
           </div>
           <div className="flex gap-2 md:col-span-2">
-            <Button type="submit">{editing ? "Salvar" : "Criar"}</Button>
+            <Button type="submit" disabled={saving || accessLoading || !!accessError}>{saving ? "Salvando..." : editing ? "Salvar" : "Criar"}</Button>
             <Button type="button" variant="outline" onClick={() => setView("list")}>
               Cancelar
             </Button>
