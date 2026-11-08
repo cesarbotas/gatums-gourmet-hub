@@ -31,3 +31,10 @@ O front mantém o ID do cliente após criação para que repetir um salvamento p
 
 ## Relatório
 O único endpoint confirmado na coleção é `GET /relatorios/vendas/resumo`, sem filtros de data documentados. O componente mostra faturamento, quantidade de pedidos, ticket médio, série diária e ranking. Consulte `GUIA-API-RELATORIOS.md` para o formato e as propostas de expansão.
+
+## Verificações realizadas
+- 62 testes unitários passaram, incluindo pesquisa/página, alteração de perfil e criação de conta ausente.
+- Login HTTPS da API hospedada retornou 200; clientes, produtos e resumo foram lidos na interface com dados reais. As chamadas foram direcionadas para HTTPS somente no navegador de teste, sem mudar variáveis de development, pois a API local não estava acessível neste ambiente.
+- Alteração de perfil e criação de usuário foram exercitadas com respostas simuladas e leitura posterior do resultado na tela, sem modificar dados de produção.
+- Relatório verificado em computador e celular, sem erros de execução e sem transbordamento horizontal no celular.
+- A comunicação direta com a API local e gravações reais permanecem não verificadas.
