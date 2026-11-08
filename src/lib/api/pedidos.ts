@@ -1,5 +1,4 @@
 import { appendPageParams, mapPaginated, type PaginatedResponse } from "./config";
-import { collectPages } from "@/lib/page-data";
 import { apiRequest } from "./client";
 import type { CartItem } from "./carrinho";
 import {

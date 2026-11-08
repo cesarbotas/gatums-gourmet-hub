@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/route-head";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { Package, ChevronDown, ChevronUp, CreditCard, MapPin } from "lucide-react";
@@ -17,7 +18,7 @@ import {
 } from "@/lib/pedido-flow";
 
 export const Route = createFileRoute("/_authenticated/minha-conta")({
-  head: () => ({ meta: [{ title: "Minha conta — Gatums Gourmet" }] }),
+  head: () => pageHead("Minha conta — Gatums Gourmet", "Acompanhe seus pedidos e dados de entrega na Gatums Gourmet."),
   component: MinhaContaPage,
 });
 
