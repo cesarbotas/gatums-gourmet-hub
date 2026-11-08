@@ -18,6 +18,7 @@ import { EnderecoForm, emptyEndereco } from "@/components/EnderecoForm";
 import { SearchPagination } from "@/components/SearchPagination";
 import { findCustomerAccount, saveCustomerAccount } from "@/lib/customer-account";
 import { pageHead } from "@/lib/route-head";
+import { collectPages, paginateItems } from "@/lib/page-data";
 
 export const Route = createFileRoute("/_authenticated/admin/clientes")({
   head: () => pageHead("Clientes — Gatums Gourmet", "Pesquise clientes e gerencie os perfis de acesso."),
@@ -36,6 +37,9 @@ function AdminClientesPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [filterCity, setFilterCity] = useState("todas");
+  const [filterRole, setFilterRole] = useState("todos");
+  const [allItems, setAllItems] = useState<Cliente[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [users, setUsers] = useState<Usuario[]>([]);
   const [roleId, setRoleId] = useState("");
@@ -53,11 +57,19 @@ function AdminClientesPage() {
 
   const load = () => {
     setListLoading(true); setListError("");
-    clientesService.list({ page, pageSize, search }).then((r) => {
-      setItems(r.items); setTotal(r.total);
-    }).catch((err) => { setItems([]); setTotal(0); setListError(err instanceof Error ? err.message : "Erro ao pesquisar clientes."); }).finally(() => setListLoading(false));
+    // Full list lets city/profile filters work across every API page.
+    collectPages((p) => clientesService.list({ page: p, pageSize: 100, search })).then((all) => {
+      setAllItems(all);
+    }).catch((err) => { setAllItems([]); setListError(err instanceof Error ? err.message : "Erro ao pesquisar clientes."); }).finally(() => setListLoading(false));
   };
-  useEffect(load, [page, pageSize, search]);
+  useEffect(load, [search]);
+  const roleOf = (c: Cliente) => findCustomerAccount(users, c.email)?.roles ?? [];
+  const cities = Array.from(new Set(allItems.map((c) => c.cidade).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const filtered = allItems.filter((c) =>
+    (filterCity === "todas" || c.cidade === filterCity) &&
+    (filterRole === "todos" || (filterRole === "sem" ? roleOf(c).length === 0 : roleOf(c).some((r) => r.toLowerCase() === filterRole.toLowerCase()))));
+  const paged = paginateItems(filtered, page, pageSize);
+  useEffect(() => { setItems(paged.items); setTotal(filtered.length); }, [allItems, filterCity, filterRole, page, pageSize, users]);
 
   const loadAccess = async () => {
     setAccessLoading(true); setAccessError("");
@@ -152,7 +164,15 @@ function AdminClientesPage() {
 
       {view === "list" && <div className="mt-6 flex flex-wrap items-center gap-3">
         <Input aria-label="Pesquisar clientes" className="w-full sm:max-w-sm" placeholder="Buscar cliente por nome ou e-mail..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
-        {search && <Button variant="ghost" onClick={() => { setSearch(""); setPage(1); }}><X className="h-4 w-4" /> Limpar filtros</Button>}
+        <Select value={filterCity} onValueChange={(v) => { setFilterCity(v); setPage(1); }}>
+          <SelectTrigger aria-label="Filtrar por cidade" className="w-full sm:w-48"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="todas">Todas as cidades</SelectItem>{cities.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+        </Select>
+        <Select value={filterRole} onValueChange={(v) => { setFilterRole(v); setPage(1); }}>
+          <SelectTrigger aria-label="Filtrar por perfil" className="w-full sm:w-48"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="todos">Todos os perfis</SelectItem>{roles.map((r) => <SelectItem key={r.id} value={r.nome}>{r.nome}</SelectItem>)}<SelectItem value="sem">Sem usuário</SelectItem></SelectContent>
+        </Select>
+        {(search || filterCity !== "todas" || filterRole !== "todos") && <Button variant="ghost" onClick={() => { setSearch(""); setFilterCity("todas"); setFilterRole("todos"); setPage(1); }}><X className="h-4 w-4" /> Limpar filtros</Button>}
         {listLoading && <p role="status" className="text-sm text-muted-foreground">Pesquisando...</p>}
         {listError && <p role="alert" className="text-sm text-destructive">{listError}</p>}
       </div>}
@@ -211,7 +231,7 @@ function AdminClientesPage() {
               )}
             </tbody>
           </table></div>
-          <SearchPagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1); }} />
+          <SearchPagination page={paged.page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1); }} />
         </div>
       ) : (
         <form
