@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { DollarSign, ShoppingBag, TrendingUp, RefreshCw } from "lucide-react";
 import { vendasService } from "@/lib/api/vendas";
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import { SearchPagination } from "./SearchPagination";
 import { paginateItems } from "@/lib/page-data";
 
@@ -67,7 +68,7 @@ export function SalesSummary() {
         </>}
       </section>
       <section>
-        <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-lg font-semibold text-foreground">Produtos mais vendidos</h3><input aria-label="Buscar produto no relatório" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground sm:w-64" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar produto..." /></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-lg font-semibold text-foreground">Produtos mais vendidos</h3><Input aria-label="Buscar produto no relatório" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground sm:w-64" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar produto..." /></div>
         <div className="mt-4 overflow-x-auto"><table className="w-full text-sm"><thead className="bg-secondary/60 text-left text-muted-foreground"><tr><th className="px-4 py-3">Produto</th><th className="px-4 py-3">Quantidade</th><th className="px-4 py-3">Faturamento</th></tr></thead><tbody>{paginated.items.map((p) => <tr key={p.produtoId ?? p.nome} className="border-b border-border"><td className="px-4 py-3 text-foreground">{p.nome}</td><td className="px-4 py-3">{p.quantidade}</td><td className="whitespace-nowrap px-4 py-3">{brl(p.total)}</td></tr>)}{products.length === 0 && <tr><td colSpan={3} className="py-8 text-center text-muted-foreground">Nenhum produto encontrado.</td></tr>}</tbody></table></div>
         <SearchPagination page={paginated.page} pageSize={pageSize} total={products.length} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1); }} />
       </section>

@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/route-head";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Search, ShoppingCart, X, Package, Boxes } from "lucide-react";
@@ -23,15 +24,7 @@ import { SearchPagination } from "@/components/SearchPagination";
 import { useCart } from "@/lib/cart-context";
 
 export const Route = createFileRoute("/catalogo")({
-  head: () => ({
-    meta: [
-      { title: "Catálogo — Gatums Gourmet" },
-      {
-        name: "description",
-        content: "Conheça todos os produtos artesanais da Gatums Gourmet.",
-      },
-    ],
-  }),
+  head: () => pageHead("Catálogo — Gatums Gourmet", "Pesquise e encontre produtos artesanais da Gatums Gourmet."),
   component: CatalogoPage,
 });
 

@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/route-head";
 import { authService, userIsAdmin } from "@/lib/api/auth";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
@@ -10,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "Entrar — Gatums Gourmet" }] }),
+  head: () => pageHead("Entrar — Gatums Gourmet", "Acesse sua conta na Gatums Gourmet."),
   component: LoginPage,
 });
 

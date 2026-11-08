@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/route-head";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowRight, Sparkles, Leaf, Award } from "lucide-react";
@@ -10,16 +11,7 @@ import { resolveComboItens } from "@/lib/combo-display";
 import { ComboItensList } from "@/components/ComboItensList";
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Gatums Gourmet — Doces, tortas e brigadeiros artesanais" },
-      {
-        name: "description",
-        content:
-          "Brigadeiros gourmet, tortas e doces artesanais feitos com carinho. Conheça o catálogo Gatums Gourmet e faça seu pedido.",
-      },
-    ],
-  }),
+  head: () => pageHead("Gatums Gourmet — Doces, tortas e brigadeiros artesanais", "Conheça os doces e produtos artesanais da Gatums Gourmet e faça seu pedido."),
   component: HomePage,
 });
 

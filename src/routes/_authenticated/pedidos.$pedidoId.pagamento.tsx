@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/route-head";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
@@ -10,7 +11,7 @@ import { pedidosService, type Pedido } from "@/lib/api/pedidos";
 import { etapaAtual } from "@/lib/pedido-flow";
 
 export const Route = createFileRoute("/_authenticated/pedidos/$pedidoId/pagamento")({
-  head: () => ({ meta: [{ title: "Pagamento — Gatums Gourmet" }] }),
+  head: () => pageHead("Pagamento — Gatums Gourmet", "Efetue o pagamento do seu pedido na Gatums Gourmet."),
   component: PagamentoPedidoPage,
 });
 

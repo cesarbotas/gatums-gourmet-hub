@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/route-head";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Trash2, Minus, Plus, ShoppingBag, Check } from "lucide-react";
 import { toast } from "sonner";
@@ -8,7 +9,7 @@ import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/_authenticated/carrinho")({
-  head: () => ({ meta: [{ title: "Carrinho — Gatums Gourmet" }] }),
+  head: () => pageHead("Carrinho — Gatums Gourmet", "Revise os produtos do seu pedido Gatums Gourmet."),
   component: CarrinhoPage,
 });
 
