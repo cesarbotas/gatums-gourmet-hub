@@ -19,7 +19,36 @@ export interface Produto {
   disponivel: boolean;
   tipo: TipoProduto;
   itens?: ItemCombo[];
+  estoque: number;
+  estoqueMinimo: number;
+  /** Somente na criação: quantidade inicial em estoque. */
+  estoqueInicial?: number;
   criadoEm: string;
+}
+
+export type TipoMovimentoEstoque = "entrada" | "saida" | "ajuste" | "venda";
+const TIPOS_MOV: TipoMovimentoEstoque[] = ["entrada", "saida", "ajuste", "venda"];
+
+export interface MovimentoEstoque {
+  id: string;
+  produtoId: string;
+  tipo: TipoMovimentoEstoque;
+  quantidade: number;
+  saldoResultante: number;
+  pedidoId: string | null;
+  observacao: string | null;
+  data: string;
+}
+
+export function estoqueBaixo(p: Pick<Produto, "estoque" | "estoqueMinimo">): boolean {
+  return p.estoque <= p.estoqueMinimo;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toTipoMov(v: any): TipoMovimentoEstoque {
+  if (typeof v === "number") return TIPOS_MOV[v] ?? "ajuste";
+  const k = String(v ?? "").toLowerCase();
+  return (TIPOS_MOV as string[]).includes(k) ? (k as TipoMovimentoEstoque) : "ajuste";
 }
 
 // API uses integer enums: TipoProduto 0=simples, 1=combo
@@ -45,6 +74,8 @@ function mapProduto(raw: any): Produto {
     disponivel: raw.disponivel ?? true,
     tipo: toTipo(raw.tipo),
     itens: raw.itens,
+    estoque: Number(raw.estoque ?? 0),
+    estoqueMinimo: Number(raw.estoqueMinimo ?? 0),
     criadoEm: raw.criadoEm ?? new Date().toISOString(),
   };
 }
@@ -96,6 +127,8 @@ export const produtosService = {
         disponivel: input.disponivel,
         tipo: fromTipo(input.tipo),
         itens: input.itens,
+        estoqueInicial: input.estoqueInicial ?? 0,
+        estoqueMinimo: input.estoqueMinimo ?? 0,
       },
     });
     return mapProduto(raw);
@@ -113,9 +146,39 @@ export const produtosService = {
         preco: input.preco,
         fotoUrl: input.foto,
         disponivel: input.disponivel,
+        estoqueMinimo: input.estoqueMinimo ?? 0,
       },
     });
     return mapProduto(raw);
+  },
+
+  async getEstoque(id: string): Promise<{ estoque: number; estoqueMinimo: number }> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = await apiRequest<any>(`/produtos/${id}/estoque`);
+    return { estoque: Number(raw?.estoque ?? 0), estoqueMinimo: Number(raw?.estoqueMinimo ?? 0) };
+  },
+
+  /** Enum no body como inteiro: 0=Entrada, 1=Saida, 2=Ajuste. */
+  async ajustarEstoque(
+    id: string,
+    input: { tipo: Exclude<TipoMovimentoEstoque, "venda">; quantidade: number; observacao?: string },
+  ): Promise<void> {
+    await apiRequest(`/produtos/${id}/estoque`, {
+      method: "PUT",
+      json: { tipo: TIPOS_MOV.indexOf(input.tipo), quantidade: input.quantidade, observacao: input.observacao || null },
+    });
+  },
+
+  async movimentos(id: string): Promise<MovimentoEstoque[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await apiRequest<any>(`/produtos/${id}/estoque/movimentos`);
+    const list = Array.isArray(res) ? res : (res?.items ?? res?.data ?? []);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return list.map((m: any) => ({
+      id: m.id, produtoId: m.produtoId, tipo: toTipoMov(m.tipo), quantidade: Number(m.quantidade ?? 0),
+      saldoResultante: Number(m.saldoResultante ?? 0), pedidoId: m.pedidoId ?? null,
+      observacao: m.observacao ?? null, data: m.data ?? "",
+    }));
   },
 
   async remove(id: string): Promise<void> {
