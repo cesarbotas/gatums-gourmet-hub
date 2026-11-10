@@ -103,11 +103,11 @@ function AdminPedidosPage() {
         </span>
       </div>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 md:grid-cols-4 md:items-center">
         <Input aria-label="Pesquisar pedidos" placeholder="Cliente ou código do pedido..." value={search} onChange={(e) => setSearch(e.target.value)} />
         <Select value={status} onValueChange={setStatus}><SelectTrigger aria-label="Filtrar etapa"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todas as etapas</SelectItem>{ETAPAS_ORDEM.map((stage) => <SelectItem key={stage} value={stage}>{statusPedidoLabel(stage)}</SelectItem>)}</SelectContent></Select>
-        <div><Label htmlFor="order-start">Data inicial</Label><Input id="order-start" type="date" value={start} max={end || undefined} onChange={(e) => setStart(e.target.value)} /></div>
-        <div><Label htmlFor="order-end">Data final</Label><Input id="order-end" type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} /></div>
+        <div><Label htmlFor="order-start" className="sr-only">Data inicial</Label><Input id="order-start" title="Data inicial" type="date" value={start} max={end || undefined} onChange={(e) => setStart(e.target.value)} /></div>
+        <div><Label htmlFor="order-end" className="sr-only">Data final</Label><Input id="order-end" title="Data final" type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} /></div>
         {(search || status !== "todos" || start || end) && <Button variant="ghost" onClick={() => { setSearch(""); setStatus("todos"); setStart(""); setEnd(""); }}>Limpar filtros</Button>}
       </div>
       {listLoading ? <p role="status" className="mt-6 text-muted-foreground">Carregando pedidos...</p> : listError ? <p role="alert" className="mt-6 text-destructive">{listError}</p> : filtered.length === 0 ? (
