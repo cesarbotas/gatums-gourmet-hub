@@ -33,6 +33,8 @@ import {
   type Categoria,
   type TipoProduto,
   type ItemCombo,
+  type TipoMovimentoEstoque,
+  estoqueBaixo,
 } from "@/lib/api";
 import { resolveComboItens } from "@/lib/combo-display";
 import { ComboItensList } from "@/components/ComboItensList";
@@ -56,7 +58,19 @@ const empty: Omit<Produto, "id" | "criadoEm"> = {
   disponivel: true,
   tipo: "simples",
   itens: [],
+  estoque: 0,
+  estoqueMinimo: 0,
+  estoqueInicial: 0,
 };
+
+function EstoqueBadge({ p }: { p: Produto }) {
+  const low = estoqueBaixo(p);
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${low ? "bg-destructive/15 text-destructive" : "bg-secondary text-secondary-foreground"}`} title={`Mínimo: ${p.estoqueMinimo}`}>
+      {p.estoque} un.{low ? " · Estoque baixo" : ""}
+    </span>
+  );
+}
 
 function AdminProdutosPage() {
   const [items, setItems] = useState<Produto[]>([]);
@@ -77,6 +91,33 @@ function AdminProdutosPage() {
   const [uploadingImg, setUploadingImg] = useState(false);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const [ajTipo, setAjTipo] = useState<Exclude<TipoMovimentoEstoque, "venda">>("entrada");
+  const [ajQtd, setAjQtd] = useState("");
+  const [ajObs, setAjObs] = useState("");
+  const [ajSaving, setAjSaving] = useState(false);
+
+  const ajustarEstoque = async () => {
+    if (!editing) return;
+    const q = Number(ajQtd);
+    if (!Number.isFinite(q) || q === 0 || (ajTipo !== "ajuste" && q < 0)) {
+      toast.error(ajTipo === "ajuste" ? "Informe uma quantidade diferente de zero (+/-)." : "Informe uma quantidade maior que zero.");
+      return;
+    }
+    setAjSaving(true);
+    try {
+      await produtosService.ajustarEstoque(editing.id, { tipo: ajTipo, quantidade: q, observacao: ajObs.trim() });
+      const e = await produtosService.getEstoque(editing.id);
+      setEditing({ ...editing, ...e });
+      setForm((f) => ({ ...f, estoque: e.estoque }));
+      setAjQtd(""); setAjObs("");
+      toast.success(`Estoque atualizado: ${e.estoque} un.`);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao ajustar estoque");
+    } finally {
+      setAjSaving(false);
+    }
+  };
 
   useEffect(() => {
     categoriasService
@@ -104,6 +145,7 @@ function AdminProdutosPage() {
     setEditing(p);
     const { id: _i, criadoEm: _c, ...rest } = p;
     setForm({ ...rest, itens: rest.itens ?? [] });
+    setAjQtd(""); setAjObs(""); setAjTipo("entrada");
     setView("form");
   };
 
@@ -150,6 +192,10 @@ function AdminProdutosPage() {
     e.preventDefault();
     if (form.tipo === "combo" && (form.itens ?? []).length === 0) {
       toast.error("Combo precisa ter ao menos 1 produto.");
+      return;
+    }
+    if ((form.estoqueMinimo ?? 0) < 0 || (form.estoqueInicial ?? 0) < 0) {
+      toast.error("Estoque não pode ser negativo.");
       return;
     }
     if (!form.categoriaId) {
@@ -245,6 +291,7 @@ function AdminProdutosPage() {
                     >
                       {p.disponivel ? "Disponível" : "Esgotado"}
                     </span>
+                    <EstoqueBadge p={p} />
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1">
@@ -277,6 +324,7 @@ function AdminProdutosPage() {
                 <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Categoria</th>
                 <th className="px-4 py-3">Preço</th>
+                <th className="px-4 py-3">Estoque</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Ações</th>
               </tr>
@@ -312,6 +360,7 @@ function AdminProdutosPage() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{p.categoriaNome}</td>
                   <td className="px-4 py-3 font-medium">R$ {p.preco.toFixed(2)}</td>
+                  <td className="px-4 py-3"><EstoqueBadge p={p} /></td>
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -340,7 +389,7 @@ function AdminProdutosPage() {
               ))}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
                     Nenhum produto cadastrado.
                   </td>
                 </tr>
@@ -426,6 +475,52 @@ function AdminProdutosPage() {
               onChange={(v) => setForm({ ...form, preco: v })}
             />
           </div>
+
+          {!editing && (
+            <div>
+              <Label htmlFor="estoqueInicial">Estoque inicial</Label>
+              <Input id="estoqueInicial" type="number" min={0} step={1} inputMode="numeric" value={form.estoqueInicial ?? 0} onChange={(e) => setForm({ ...form, estoqueInicial: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })} />
+            </div>
+          )}
+
+          <div>
+            <Label htmlFor="estoqueMinimo">Estoque mínimo</Label>
+            <Input id="estoqueMinimo" type="number" min={0} step={1} inputMode="numeric" value={form.estoqueMinimo ?? 0} onChange={(e) => setForm({ ...form, estoqueMinimo: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })} />
+            <p className="mt-1 text-xs text-muted-foreground">Alerta de “Estoque baixo” quando o saldo chegar a este valor.</p>
+          </div>
+
+          {editing && (
+            <div className="md:col-span-2 rounded-xl border border-border bg-secondary/30 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium text-foreground">Ajustar estoque</p>
+                <EstoqueBadge p={editing} />
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-[160px_140px_1fr_auto] sm:items-end">
+                <div>
+                  <Label>Movimento</Label>
+                  <Select value={ajTipo} onValueChange={(v) => setAjTipo(v as typeof ajTipo)}>
+                    <SelectTrigger aria-label="Tipo de movimento"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="entrada">Entrada</SelectItem>
+                      <SelectItem value="saida">Saída</SelectItem>
+                      <SelectItem value="ajuste">Ajuste (+/-)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="ajQtd">Quantidade</Label>
+                  <Input id="ajQtd" type="number" step={1} value={ajQtd} onChange={(e) => setAjQtd(e.target.value)} />
+                </div>
+                <div>
+                  <Label htmlFor="ajObs">Observação</Label>
+                  <Input id="ajObs" value={ajObs} onChange={(e) => setAjObs(e.target.value)} placeholder="Opcional" />
+                </div>
+                <Button type="button" variant="outline" disabled={ajSaving} onClick={ajustarEstoque}>
+                  {ajSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />} Aplicar
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-3">
             <Switch
