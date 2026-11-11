@@ -1,4 +1,7 @@
 # Implementação
+- [ ] Validar endpoints de estoque e criar controle com consulta, ajustes e histórico.
+- [ ] Tornar filtros responsivos e sinalizar pedidos com produtos em estoque baixo.
+- [ ] Marcar produtos sem estoque como indisponíveis e conferir testes e telas.
 - [x] Validar a coleção da API para filtros, paginação, perfis e relatórios.
 - [x] Adicionar filtros e paginação às pesquisas de produtos, categorias, clientes, catálogo, pedidos e ranking do relatório.
 - [x] Permitir selecionar/alterar o perfil e criar usuário ausente no cadastro de clientes.

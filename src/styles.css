@@ -129,6 +129,8 @@
 }
 
 @layer utilities {
+  .search-filters > * { min-width: 0; }
+  .search-filters input { min-width: 0; max-width: 100%; }
   .bg-gradient-warm {
     background-image: linear-gradient(135deg, var(--primary), var(--accent));
   }

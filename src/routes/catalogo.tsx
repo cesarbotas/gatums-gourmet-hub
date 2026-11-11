@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { produtosService, categoriasService, type Produto, type Categoria } from "@/lib/api";
+import { produtosService, categoriasService, produtoDisponivel, type Produto, type Categoria } from "@/lib/api";
 import { resolveComboItens } from "@/lib/combo-display";
 import { ComboItensList } from "@/components/ComboItensList";
 import { CategoriaCombobox } from "@/components/CategoriaCombobox";
@@ -41,7 +41,7 @@ function CatalogoPage() {
   const [categoriaId, setCategoriaId] = useState<string>("todas");
   const [tipo, setTipo] = useState<"todos" | "simples" | "combo">("todos");
   const [ordem, setOrdem] = useState<Ordem>("nome");
-  const [soDisponiveis, setSoDisponiveis] = useState(true);
+  const [soDisponiveis, setSoDisponiveis] = useState(false);
   const [maxPreco, setMaxPreco] = useState<number | null>(null);
 
   const { isAuthenticated, isAdmin } = useAuth();
@@ -65,7 +65,7 @@ function CatalogoPage() {
     let list = items.filter((p) => {
       if (categoriaId !== "todas" && String(p.categoriaId) !== categoriaId) return false;
       if (tipo !== "todos" && p.tipo !== tipo) return false;
-      if (soDisponiveis && !p.disponivel) return false;
+      if (soDisponiveis && !produtoDisponivel(p)) return false;
       if (maxPreco !== null && p.preco > maxPreco) return false;
       if (
         s &&
@@ -90,6 +90,7 @@ function CatalogoPage() {
   useEffect(() => { setPage(1); }, [search, categoriaId, tipo, soDisponiveis, maxPreco, ordem]);
 
   const handleAdd = (p: Produto) => {
+    if (!produtoDisponivel(p)) { toast.error("Produto indisponível."); return; }
     if (!isAuthenticated) {
       toast.info("Faça login para adicionar ao carrinho.");
       navigate({ to: "/login" });
@@ -108,12 +109,12 @@ function CatalogoPage() {
     setCategoriaId("todas");
     setTipo("todos");
     setOrdem("nome");
-    setSoDisponiveis(true);
+    setSoDisponiveis(false);
     setMaxPreco(null);
   };
 
   const filtrosAtivos =
-    !!search || categoriaId !== "todas" || tipo !== "todos" || !soDisponiveis || maxPreco !== null;
+    !!search || categoriaId !== "todas" || tipo !== "todos" || soDisponiveis || maxPreco !== null;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -126,7 +127,7 @@ function CatalogoPage() {
               Explore nossas receitas e encomende seus favoritos.
             </p>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-12">
+            <div className="search-filters mt-6 grid gap-3 md:grid-cols-12">
               <div className="relative md:col-span-5">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -189,7 +190,7 @@ function CatalogoPage() {
                       max={precoMaximo}
                       value={maxPreco ?? precoMaximo}
                       onChange={(e) => setMaxPreco(Number(e.target.value))}
-                      className="w-40 accent-primary"
+                      className="w-24 sm:w-40 accent-primary"
                     />
                     <span className="font-medium text-foreground">
                       R$ {(maxPreco ?? precoMaximo).toFixed(0)}
@@ -228,14 +229,14 @@ function CatalogoPage() {
                 >
                   <div className="relative aspect-[4/3] overflow-hidden bg-muted">
                     <img
-                      src={p.foto}
+                      src={p.foto || undefined}
                       alt={p.nome}
                       loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 ${!produtoDisponivel(p) ? "grayscale" : ""}`}
                     />
-                    {!p.disponivel && (
+                    {!produtoDisponivel(p) && (
                       <span className="absolute left-3 top-3 rounded-full bg-foreground/80 px-2 py-0.5 text-xs font-medium text-background">
-                        Esgotado
+                        Indisponível
                       </span>
                     )}
                     <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-0.5 text-xs font-medium text-foreground">
@@ -262,8 +263,8 @@ function CatalogoPage() {
                       <span className="font-display text-xl text-foreground">
                         R$ {p.preco.toFixed(2)}
                       </span>
-                      <Button size="sm" disabled={!p.disponivel} onClick={() => handleAdd(p)}>
-                        <ShoppingCart className="h-4 w-4" /> Adicionar
+                      <Button size="sm" disabled={!produtoDisponivel(p)} onClick={() => handleAdd(p)}>
+                        <ShoppingCart className="h-4 w-4" /> {produtoDisponivel(p) ? "Adicionar" : "Indisponível"}
                       </Button>
                     </div>
                   </div>

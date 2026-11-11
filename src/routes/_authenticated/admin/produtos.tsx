@@ -35,6 +35,8 @@ import {
   type ItemCombo,
   type TipoMovimentoEstoque,
   estoqueBaixo,
+  produtoDisponivel,
+  validarMovimento,
 } from "@/lib/api";
 import { resolveComboItens } from "@/lib/combo-display";
 import { ComboItensList } from "@/components/ComboItensList";
@@ -64,6 +66,7 @@ const empty: Omit<Produto, "id" | "criadoEm"> = {
 };
 
 function EstoqueBadge({ p }: { p: Produto }) {
+  if (p.estoqueInformado === false) return <span className="text-xs text-muted-foreground">Não informado</span>;
   const low = estoqueBaixo(p);
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${low ? "bg-destructive/15 text-destructive" : "bg-secondary text-secondary-foreground"}`} title={`Mínimo: ${p.estoqueMinimo}`}>
@@ -99,16 +102,13 @@ function AdminProdutosPage() {
   const ajustarEstoque = async () => {
     if (!editing) return;
     const q = Number(ajQtd);
-    if (!Number.isFinite(q) || q === 0 || (ajTipo !== "ajuste" && q < 0)) {
-      toast.error(ajTipo === "ajuste" ? "Informe uma quantidade diferente de zero (+/-)." : "Informe uma quantidade maior que zero.");
-      return;
-    }
+    try { validarMovimento(ajTipo, q); } catch (err) { toast.error(err instanceof Error ? err.message : "Quantidade inválida."); return; }
     setAjSaving(true);
     try {
       await produtosService.ajustarEstoque(editing.id, { tipo: ajTipo, quantidade: q, observacao: ajObs.trim() });
       const e = await produtosService.getEstoque(editing.id);
-      setEditing({ ...editing, ...e });
-      setForm((f) => ({ ...f, estoque: e.estoque }));
+      setEditing({ ...editing, ...e, estoqueInformado: true, disponivel: editing.disponivel && e.estoque > 0 });
+      setForm((f) => ({ ...f, estoque: e.estoque, estoqueInformado: true, disponivel: f.disponivel && e.estoque > 0 }));
       setAjQtd(""); setAjObs("");
       toast.success(`Estoque atualizado: ${e.estoque} un.`);
       load();
@@ -232,7 +232,7 @@ function AdminProdutosPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl text-foreground">Produtos</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -250,7 +250,7 @@ function AdminProdutosPage() {
         )}
       </div>
 
-      {view === "list" && <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {view === "list" && <div className="search-filters mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Input aria-label="Pesquisar produtos" placeholder="Buscar produto..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
         <CategoriaCombobox categorias={categorias} value={filterCategory} onChange={(value) => { setFilterCategory(value); setPage(1); }} allOption={{ value: "todas", label: "Todas as categorias" }} />
         <Select value={filterType} onValueChange={(value) => { setFilterType(value as typeof filterType); setPage(1); }}><SelectTrigger aria-label="Filtrar tipo"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todos os tipos</SelectItem><SelectItem value="simples">Simples</SelectItem><SelectItem value="combo">Combo</SelectItem></SelectContent></Select>
@@ -284,12 +284,12 @@ function AdminProdutosPage() {
                     </span>
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        p.disponivel
+                        produtoDisponivel(p)
                           ? "bg-accent/15 text-accent"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
-                      {p.disponivel ? "Disponível" : "Esgotado"}
+                      {produtoDisponivel(p) ? "Disponível" : "Indisponível"}
                     </span>
                     <EstoqueBadge p={p} />
                   </div>
@@ -364,10 +364,10 @@ function AdminProdutosPage() {
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        p.disponivel ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
+                        produtoDisponivel(p) ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
                       }`}
                     >
-                      {p.disponivel ? "Disponível" : "Esgotado"}
+                      {produtoDisponivel(p) ? "Disponível" : "Indisponível"}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -495,7 +495,7 @@ function AdminProdutosPage() {
                 <p className="font-medium text-foreground">Ajustar estoque</p>
                 <EstoqueBadge p={editing} />
               </div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-[160px_140px_1fr_auto] sm:items-end">
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-[160px_140px_minmax(0,1fr)_auto] sm:items-end">
                 <div>
                   <Label>Movimento</Label>
                   <Select value={ajTipo} onValueChange={(v) => setAjTipo(v as typeof ajTipo)}>
@@ -525,7 +525,8 @@ function AdminProdutosPage() {
           <div className="flex items-center gap-3">
             <Switch
               id="disponivel"
-              checked={form.disponivel}
+              checked={form.disponivel && (editing ? form.estoqueInformado === false || form.estoque > 0 : (form.estoqueInicial ?? 0) > 0)}
+              disabled={editing ? form.estoqueInformado !== false && form.estoque <= 0 : (form.estoqueInicial ?? 0) <= 0}
               onCheckedChange={(v) => setForm({ ...form, disponivel: v })}
             />
             <Label htmlFor="disponivel" className="cursor-pointer">

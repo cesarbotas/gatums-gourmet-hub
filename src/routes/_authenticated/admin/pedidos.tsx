@@ -33,6 +33,8 @@ import {
   proximaEtapa,
 } from "@/lib/pedido-flow";
 import type { EntregaTipo } from "@/lib/pedido-flow";
+import { produtosService, type Produto } from "@/lib/api/produtos";
+import { produtosBaixosNoPedido } from "@/lib/order-stock";
 
 export const Route = createFileRoute("/_authenticated/admin/pedidos")({
   head: () => pageHead("Pedidos — Gatums Gourmet", "Pesquise pedidos por cliente, código, etapa e período."),
@@ -41,6 +43,8 @@ export const Route = createFileRoute("/_authenticated/admin/pedidos")({
 
 function AdminPedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [stockError, setStockError] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("todos");
   const [start, setStart] = useState("");
@@ -60,6 +64,11 @@ function AdminPedidosPage() {
   }, []);
 
   useEffect(reload, [reload]);
+  useEffect(() => {
+    collectPages((page) => produtosService.list({ page, pageSize: 100 })).then((all) => {
+      setProdutos(all); setStockError(all.some((p) => p.estoqueInformado === false) ? "Alertas de estoque aguardam os saldos na API." : "");
+    }).catch(() => setStockError("Não foi possível consultar o estoque dos itens dos pedidos."));
+  }, [pedidos]);
 
   const avancar = async (id: string) => {
     const pedido = pedidos.find((p) => p.id === id);
@@ -91,7 +100,7 @@ function AdminPedidosPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl text-foreground">Pedidos</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -103,13 +112,14 @@ function AdminPedidosPage() {
         </span>
       </div>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 md:grid-cols-4 md:items-center">
-        <Input aria-label="Pesquisar pedidos" placeholder="Cliente ou código do pedido..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        <Select value={status} onValueChange={setStatus}><SelectTrigger aria-label="Filtrar etapa"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todas as etapas</SelectItem>{ETAPAS_ORDEM.map((stage) => <SelectItem key={stage} value={stage}>{statusPedidoLabel(stage)}</SelectItem>)}</SelectContent></Select>
-        <div><Label htmlFor="order-start" className="sr-only">Data inicial</Label><Input id="order-start" title="Data inicial" type="date" value={start} max={end || undefined} onChange={(e) => setStart(e.target.value)} /></div>
-        <div><Label htmlFor="order-end" className="sr-only">Data final</Label><Input id="order-end" title="Data final" type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} /></div>
+      <div className="search-filters mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div><Label htmlFor="order-search">Cliente ou código</Label><Input id="order-search" aria-label="Pesquisar pedidos" placeholder="Cliente ou código do pedido..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+        <div><Label htmlFor="order-stage">Etapa</Label><Select value={status} onValueChange={setStatus}><SelectTrigger id="order-stage" aria-label="Filtrar etapa"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todas as etapas</SelectItem>{ETAPAS_ORDEM.map((stage) => <SelectItem key={stage} value={stage}>{statusPedidoLabel(stage)}</SelectItem>)}</SelectContent></Select></div>
+        <div><Label htmlFor="order-start">Data inicial</Label><Input id="order-start" title="Data inicial" type="date" value={start} max={end || undefined} onChange={(e) => setStart(e.target.value)} /></div>
+        <div><Label htmlFor="order-end">Data final</Label><Input id="order-end" title="Data final" type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} /></div>
         {(search || status !== "todos" || start || end) && <Button variant="ghost" onClick={() => { setSearch(""); setStatus("todos"); setStart(""); setEnd(""); }}>Limpar filtros</Button>}
       </div>
+      {stockError && <p role="status" className="mt-3 text-sm text-muted-foreground">{stockError}</p>}
       {listLoading ? <p role="status" className="mt-6 text-muted-foreground">Carregando pedidos...</p> : listError ? <p role="alert" className="mt-6 text-destructive">{listError}</p> : filtered.length === 0 ? (
         <div className="mt-8 rounded-2xl border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
           Nenhum pedido registrado ainda.
@@ -122,6 +132,7 @@ function AdminPedidosPage() {
             const acao = proximaAcaoLabel(p.timeline, "admin");
             const prox = proximaEtapa(atual);
             const podeAgir = pedidosService.podeAvancar(p, "admin");
+            const baixos = produtosBaixosNoPedido(p.itens, produtos);
 
             return (
               <li key={p.id} className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
@@ -135,6 +146,7 @@ function AdminPedidosPage() {
                     <p className="font-medium text-foreground">
                       #{p.id.slice(0, 6).toUpperCase()} · {p.clienteNome}
                     </p>
+                    {baixos.length > 0 && <span className="mt-1 inline-block text-xs font-semibold text-destructive">Estoque baixo · {baixos.length} {baixos.length === 1 ? "produto" : "produtos"}</span>}
                     <p className="text-xs text-muted-foreground">
                       {new Date(p.data).toLocaleString("pt-BR")} · {p.itens.length}{" "}
                       {p.itens.length === 1 ? "item" : "itens"} ·{" "}
@@ -161,6 +173,7 @@ function AdminPedidosPage() {
                             <li key={i.produtoId} className="flex justify-between gap-2">
                               <span>
                                 {i.nome} ×{i.quantidade}
+                                {baixos.some((produto) => produto.id === i.produtoId) && <span className="block text-xs text-destructive">Estoque atual baixo</span>}
                               </span>
                               <span className="text-muted-foreground">
                                 R$ {(i.preco * i.quantidade).toFixed(2)}
