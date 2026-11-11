@@ -137,7 +137,7 @@ function AdminClientesPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl text-foreground">Clientes</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -162,14 +162,14 @@ function AdminClientesPage() {
         )}
       </div>
 
-      {view === "list" && <div className="mt-6 flex flex-wrap items-center gap-3">
-        <Input aria-label="Pesquisar clientes" className="w-full sm:max-w-sm" placeholder="Buscar cliente por nome ou e-mail..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+      {view === "list" && <div className="search-filters mt-6 grid items-center gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <Input aria-label="Pesquisar clientes" placeholder="Buscar cliente por nome ou e-mail..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
         <Select value={filterCity} onValueChange={(v) => { setFilterCity(v); setPage(1); }}>
-          <SelectTrigger aria-label="Filtrar por cidade" className="w-full sm:w-48"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label="Filtrar por cidade"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="todas">Todas as cidades</SelectItem>{cities.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
         </Select>
         <Select value={filterRole} onValueChange={(v) => { setFilterRole(v); setPage(1); }}>
-          <SelectTrigger aria-label="Filtrar por perfil" className="w-full sm:w-48"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label="Filtrar por perfil"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="todos">Todos os perfis</SelectItem>{roles.map((r) => <SelectItem key={r.id} value={r.nome}>{r.nome}</SelectItem>)}<SelectItem value="sem">Sem usuário</SelectItem></SelectContent>
         </Select>
         {(search || filterCity !== "todas" || filterRole !== "todos") && <Button variant="ghost" onClick={() => { setSearch(""); setFilterCity("todas"); setFilterRole("todos"); setPage(1); }}><X className="h-4 w-4" /> Limpar filtros</Button>}

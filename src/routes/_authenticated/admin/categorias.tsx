@@ -95,7 +95,7 @@ function AdminCategoriasPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl text-foreground">Categorias</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -113,9 +113,9 @@ function AdminCategoriasPage() {
         )}
       </div>
 
-      {view === "list" && <div className="mt-6 flex flex-wrap items-center gap-3">
-        <Input aria-label="Pesquisar categorias" className="w-full sm:max-w-sm" placeholder="Buscar categoria..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
-        <Switch id="filter-active-category" checked={onlyActive} onCheckedChange={(value) => { setOnlyActive(value); setPage(1); }} /><Label htmlFor="filter-active-category">Apenas ativas</Label>
+      {view === "list" && <div className="search-filters mt-6 grid items-center gap-3 sm:grid-cols-2">
+        <Input aria-label="Pesquisar categorias" placeholder="Buscar categoria..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+        <div className="flex items-center gap-3"><Switch id="filter-active-category" checked={onlyActive} onCheckedChange={(value) => { setOnlyActive(value); setPage(1); }} /><Label htmlFor="filter-active-category">Apenas ativas</Label></div>
         {(search || onlyActive) && <Button variant="ghost" onClick={() => { setSearch(""); setOnlyActive(false); setPage(1); }}><X className="h-4 w-4" /> Limpar filtros</Button>}
       </div>}
       {view === "list" ? (

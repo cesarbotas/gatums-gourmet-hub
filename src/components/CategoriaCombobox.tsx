@@ -60,9 +60,9 @@ export function CategoriaCombobox({
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          className={cn("w-full justify-between font-normal", className)}
+          className={cn("h-9 w-full min-w-0 justify-between font-normal", className)}
         >
-          <span className={cn("truncate", !selectedLabel && "text-muted-foreground")}>
+          <span className={cn("min-w-0 truncate", !selectedLabel && "text-muted-foreground")}>
             {selectedLabel ?? placeholder}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
