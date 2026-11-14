@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, Link, Navigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Package, Tags, Users, BarChart3, ShoppingBag, Boxes } from "lucide-react";
+import { LayoutDashboard, Package, Tags, Users, BarChart3, ShoppingBag, Boxes, CreditCard } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { Navigation } from "@/components/Navigation";
 
@@ -10,6 +10,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
 
 const adminLinks: { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
   { to: "/admin", label: "Visão geral", icon: LayoutDashboard, exact: true },
+  { to: "/admin/venda-rapida", label: "Venda rápida", icon: CreditCard },
   { to: "/admin/produtos", label: "Produtos", icon: Package },
   { to: "/admin/estoque", label: "Estoque", icon: Boxes },
   { to: "/admin/categorias", label: "Categorias", icon: Tags },
