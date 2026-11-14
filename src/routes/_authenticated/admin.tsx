@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, Link, Navigate, useRouterState } from "@tanstack/react-router";
 import { LayoutDashboard, Package, Tags, Users, BarChart3, ShoppingBag, Boxes, CreditCard } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { userIsAdmin } from "@/lib/api/auth";
 import { Navigation } from "@/components/Navigation";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -19,12 +20,22 @@ const adminLinks: { to: string; label: string; icon: typeof LayoutDashboard; exa
   { to: "/admin/relatorios", label: "Relatórios", icon: BarChart3 },
 ];
 
+/** Admin e Gerente têm acesso ao painel administrativo. */
+function useIsAdminOrGerente() {
+  const { user, ready } = useAuth();
+  const session = typeof window !== "undefined"
+    ? (() => { try { const r = window.localStorage.getItem("gg.session"); return r ? JSON.parse(r) : null; } catch { return null; } })()
+    : null;
+  const isOperador = userIsAdmin(user, session?.accessToken);
+  return { isOperador, ready };
+}
+
 function AdminLayout() {
-  const { isAdmin, ready } = useAuth();
+  const { isOperador, ready } = useIsAdminOrGerente();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   if (!ready) return null;
-  if (!isAdmin) return <Navigate to="/" />;
+  if (!isOperador) return <Navigate to="/" />;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
