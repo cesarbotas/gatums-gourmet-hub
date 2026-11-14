@@ -6,3 +6,4 @@
 - Keep the sales summary rendering in SalesSummary and leaf metadata in pageHead; both isolate API normalization and consistent route metadata.
 - Normalize stock-aware availability in the product API service; missing stock fields are unknown, not zero, while zero balances disable sales without mutating the API on reads.
 - Order stock warnings use current product balances, never subtract ordered quantities again; checkout already records stock debits.
+- Keep quick-sale selection ephemeral and separate from customer carts; admin checkout/payment stays blocked until the external API exposes an authorized point-of-sale contract.
