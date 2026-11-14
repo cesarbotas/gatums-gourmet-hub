@@ -1,4 +1,5 @@
 # Implementação
+- [ ] Criar venda rápida no admin para selecionar produtos, apresentar total e seguir para pagamento; validar endpoints e permissões.
 - [ ] Validar endpoints de estoque e criar controle com consulta, ajustes e histórico.
 - [ ] Tornar filtros responsivos e sinalizar pedidos com produtos em estoque baixo.
 - [ ] Marcar produtos sem estoque como indisponíveis e conferir testes e telas.
