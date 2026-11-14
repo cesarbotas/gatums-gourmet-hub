@@ -57,6 +57,11 @@ export interface PagamentoPresencialResposta extends TransacaoPagamento {
   valorRecebido?: number;
   /** ISO-8601: momento em que o pagamento foi aprovado (dinheiro/cartão confirmado/Pix). */
   aprovadoEm?: string;
+  /**
+   * QR Code Pix como string base64 pura (sem prefixo data:), conforme retornado pela API.
+   * O serviço monta pixQrCodeDataUrl a partir deste campo para uso direto em <img src>.
+   */
+  pixQrCodeBase64?: string;
 }
 
 export interface ConfirmarCartaoInput {
@@ -103,6 +108,14 @@ function mapVendaPresencial(raw: any): VendaPresencial {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapPagamentoPresencial(raw: any): PagamentoPresencialResposta {
+  // A API retorna pixQrCodeBase64 (string base64 pura, sem prefixo data:).
+  // Montamos o data: URI aqui para que a tela use direto num <img src>.
+  const pixQrCodeBase64: string | undefined = raw.pixQrCodeBase64 ?? undefined;
+  const pixQrCodeDataUrl: string | undefined =
+    pixQrCodeBase64
+      ? `data:image/png;base64,${pixQrCodeBase64}`
+      : (raw.pixQrCodeDataUrl ?? undefined);
+
   return {
     id: raw.id,
     pedidoId: raw.pedidoId,
@@ -116,7 +129,8 @@ function mapPagamentoPresencial(raw: any): PagamentoPresencialResposta {
     operadora: raw.operadora ?? "presencial",
     operadoraRef: raw.operadoraRef,
     pixCopiaCola: raw.pixCopiaCola,
-    pixQrCodeDataUrl: raw.pixQrCodeDataUrl,
+    pixQrCodeBase64,
+    pixQrCodeDataUrl,
     pixExpiraEm: raw.pixExpiraEm,
     cartaoUltimos4: raw.cartaoUltimos4,
     cartaoBandeira: raw.cartaoBandeira,
@@ -211,7 +225,18 @@ async function mockIniciarPagamentoPresencial(
 
   // Pix — delega ao serviço de pagamentos existente para reutilizar QR mock
   const tx = await pagamentosService.iniciar(input.pedidoId, "pix", input.valor);
-  return { ...tx };
+  // O mock de pagamentos devolve pixQrCodeDataUrl com prefixo data:image/png;base64,
+  // Extraímos a parte base64 pura para manter o mesmo contrato da API real.
+  const dataUrl = tx.pixQrCodeDataUrl ?? "";
+  const pixQrCodeBase64 = dataUrl.startsWith("data:image/png;base64,")
+    ? dataUrl.slice("data:image/png;base64,".length)
+    : undefined;
+  return {
+    ...tx,
+    pixQrCodeBase64,
+    // Mantém pixQrCodeDataUrl para compatibilidade com o restante do serviço
+    pixQrCodeDataUrl: dataUrl || undefined,
+  };
 }
 
 async function mockConfirmarCartaoPresencial(
@@ -290,12 +315,12 @@ export const vendaPresencialService = {
     const METODO_TO_INT: Record<string, number> = {
       cartao_debito: 0,
       cartao_credito: 1,
-      pix: 2,
-      dinheiro: 3,
+      dinheiro: 2,
+      pix: 3,
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = await apiRequest<any>("/pagamentos/iniciar", {
+    const raw = await apiRequest<any>("/admin/vendas-presenciais/pagamento", {
       method: "POST",
       json: {
         pedidoId: input.pedidoId,

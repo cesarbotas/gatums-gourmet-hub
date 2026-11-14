@@ -120,6 +120,15 @@ Content-Type: application/json
 | `cartao_credito` | Crédito via maquininha | Confirmação manual pelo operador (ver §2.3) |
 | `pix` | Pix via QR Code dinâmico | PSP gera QR; confirmação via webhook (ver §2.4) |
 
+**Enum inteiro enviado no campo `metodo`:**
+
+| Valor | Forma |
+|---|---|
+| `0` | `cartao_debito` |
+| `1` | `cartao_credito` |
+| `2` | `dinheiro` |
+| `3` | `pix` |
+
 **Resposta 201 Created — dinheiro**
 
 ```json

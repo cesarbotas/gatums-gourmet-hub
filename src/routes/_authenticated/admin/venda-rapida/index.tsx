@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Loader2,
   Smartphone,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -66,9 +67,10 @@ export type FormaPagamento =
  * Passos do painel lateral:
  * cart          → resumo + seleção de produtos
  * payment       → escolha de forma + troco
- * loading       → aguardando resposta da API
- * maquininha    → cartão: operador confirma após maquininha
- * pix_aguardo   → Pix: exibe QR, faz polling
+ * loading       → aguardando resposta da API (criar pedido + iniciar pagamento)
+ * maquininha    → cartão: operador confirma após maquininha aprovar
+ * pix_qr        → Pix: exibe QR Code + Copia e Cola; operador aguarda cliente escanear
+ * pix_aguardo   → Pix: polling de status após operador confirmar escaneio
  * done          → venda concluída
  */
 export type PanelStep =
@@ -76,6 +78,7 @@ export type PanelStep =
   | "payment"
   | "loading"
   | "maquininha"
+  | "pix_qr"
   | "pix_aguardo"
   | "done";
 
@@ -217,8 +220,8 @@ function VendaRapidaPage() {
         return;
       }
 
-      // Pix
-      setStep("pix_aguardo");
+      // Pix → mostra QR primeiro, polling só depois
+      setStep("pix_qr");
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Erro ao processar venda.",
@@ -582,6 +585,7 @@ function SidePanel(props: SidePanelProps) {
       {props.step === "payment" && <PaymentStep {...props} />}
       {props.step === "loading" && <LoadingStep />}
       {props.step === "maquininha" && <MaquininhaStep {...props} />}
+      {props.step === "pix_qr" && <PixQrStep {...props} />}
       {props.step === "pix_aguardo" && <PixAguardoStep {...props} />}
       {props.step === "done" && (
         <DoneStep
@@ -914,39 +918,18 @@ function MaquininhaStep({ payment, total, onConfirmarMaquininha, onNewSale }: Si
   );
 }
 
-// ── Step: Pix aguardo ──────────────────────────────────────────────────────
+// ── Step: Pix — exibe QR Code ─────────────────────────────────────────────
 
-function PixAguardoStep({ pagamentoResp, onPixAprovado, onNewSale }: SidePanelProps) {
-  const [status, setStatus] = useState<string>(
-    pagamentoResp?.status ?? "aguardando_pagamento",
-  );
+function PixQrStep({ pagamentoResp, total, onStep, onNewSale }: SidePanelProps) {
+  const [copied, setCopied] = useState(false);
 
-  // Polling a cada 4 segundos
-  useEffect(() => {
-    if (!pagamentoResp?.id) return;
-    if (status === "aprovada" || status === "expirada") return;
-
-    const interval = setInterval(async () => {
-      try {
-        const tx = await vendaPresencialService.consultarStatusPix(
-          pagamentoResp.id,
-        );
-        setStatus(tx.status);
-        if (tx.status === "aprovada") {
-          clearInterval(interval);
-          onPixAprovado(tx as PagamentoPresencialResposta);
-        }
-        if (tx.status === "expirada") {
-          clearInterval(interval);
-          toast.error("Pix expirado. Inicie uma nova venda.");
-        }
-      } catch {
-        // silencia erros de polling; tenta na próxima iteração
-      }
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [pagamentoResp?.id, status, onPixAprovado]);
+  const copiar = () => {
+    if (!pagamentoResp?.pixCopiaCola) return;
+    navigator.clipboard.writeText(pagamentoResp.pixCopiaCola).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
 
   const expiraEm = pagamentoResp?.pixExpiraEm
     ? new Date(pagamentoResp.pixExpiraEm).toLocaleTimeString("pt-BR", {
@@ -957,37 +940,140 @@ function PixAguardoStep({ pagamentoResp, onPixAprovado, onNewSale }: SidePanelPr
 
   return (
     <div className="flex flex-col items-center py-2 text-center">
-      <h2 className="font-display text-xl text-foreground">Pix</h2>
+      <div className="flex items-center gap-2">
+        <QrCode className="h-5 w-5 text-primary" />
+        <h2 className="font-display text-xl text-foreground">Pix</h2>
+      </div>
+
       <p className="mt-1 text-sm text-muted-foreground">
-        Escaneie o QR Code com o app do banco
+        Mostre o QR ao cliente ou envie o código Copia e Cola
       </p>
 
+      {/* QR Code */}
       {pagamentoResp?.pixQrCodeDataUrl ? (
         <img
           src={pagamentoResp.pixQrCodeDataUrl}
           alt="QR Code Pix"
-          className="mt-4 h-44 w-44 rounded-lg border border-border"
-        />
-      ) : (
-        <div className="mt-4 flex h-44 w-44 items-center justify-center rounded-lg border border-border bg-muted">
+          className="mt-4 h-48 w-48 rounded-xl border border-border shadow-sm"
+        />      ) : (
+        <div className="mt-4 flex h-48 w-48 items-center justify-center rounded-xl border border-border bg-muted">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       )}
 
+      {/* Valor */}
+      <p className="mt-3 font-display text-2xl text-foreground">{brl(total)}</p>
+
       {expiraEm && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          Válido até {expiraEm}
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">Válido até {expiraEm}</p>
       )}
 
-      <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Aguardando pagamento…
-      </div>
+      {/* Copia e cola */}
+      {pagamentoResp?.pixCopiaCola && (
+        <div className="mt-4 w-full">
+          <p className="mb-1 text-left text-xs font-medium text-muted-foreground">
+            Pix Copia e Cola
+          </p>
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2">
+            <p className="flex-1 truncate text-left font-mono text-xs text-foreground">
+              {pagamentoResp.pixCopiaCola}
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0"
+              onClick={copiar}
+            >
+              {copied ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+              {copied ? "Copiado" : "Copiar"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Avançar para polling */}
+      <Button
+        className="mt-5 w-full"
+        onClick={() => onStep("pix_aguardo")}
+      >
+        <CheckCircle2 className="h-4 w-4" />
+        Cliente escaneou — verificar pagamento
+      </Button>
 
       <Button
         variant="ghost"
-        className="mt-4 w-full text-muted-foreground"
+        className="mt-2 w-full text-muted-foreground"
+        onClick={onNewSale}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+        Cancelar venda
+      </Button>
+    </div>
+  );
+}
+
+// ── Step: Pix — polling de confirmação ────────────────────────────────────
+
+function PixAguardoStep({ pagamentoResp, onPixAprovado, onStep, onNewSale }: SidePanelProps) {
+  const [status, setStatus] = useState<string>(
+    pagamentoResp?.status ?? "aguardando_pagamento",
+  );
+
+  useEffect(() => {
+    if (!pagamentoResp?.id) return;
+    if (status === "aprovada" || status === "expirada") return;
+
+    const interval = setInterval(async () => {
+      try {
+        const tx = await vendaPresencialService.consultarStatusPix(pagamentoResp.id);
+        setStatus(tx.status);
+        if (tx.status === "aprovada") {
+          clearInterval(interval);
+          onPixAprovado(tx as PagamentoPresencialResposta);
+        }
+        if (tx.status === "expirada" || tx.status === "cancelada") {
+          clearInterval(interval);
+          toast.error("Pix expirado. Inicie uma nova venda.");
+        }
+      } catch {
+        // silencia erros de rede; tenta na próxima iteração
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [pagamentoResp?.id, status, onPixAprovado]);
+
+  return (
+    <div className="flex flex-col items-center py-6 text-center">
+      <Loader2 className="h-10 w-10 animate-spin text-primary" />
+
+      <h2 className="mt-4 font-display text-xl text-foreground">
+        Aguardando confirmação
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Verificando o pagamento junto ao banco…
+      </p>
+      <p className="mt-4 text-xs text-muted-foreground">
+        A tela avança automaticamente quando o pagamento for confirmado.
+      </p>
+
+      {/* Voltar para o QR caso o cliente precise escanear de novo */}
+      <Button
+        variant="outline"
+        className="mt-6 w-full"
+        onClick={() => onStep("pix_qr")}
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Voltar ao QR Code
+      </Button>
+
+      <Button
+        variant="ghost"
+        className="mt-2 w-full text-muted-foreground"
         onClick={onNewSale}
       >
         <Trash2 className="h-3.5 w-3.5" />
