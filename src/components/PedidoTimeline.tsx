@@ -19,10 +19,18 @@ function descricaoParaTimeline(descricao: string) {
 
 export function PedidoTimeline({ timeline, className }: PedidoTimelineProps) {
   const atual = etapaAtual(timeline);
+  const cancelado = atual === "cancelado";
+
+  // Fluxo linear sem "cancelado". Se o pedido foi cancelado, mostra só as
+  // etapas que realmente ocorreram + a etapa de cancelamento ao final.
+  const LINEAR_ETAPAS = ETAPAS_ORDEM.filter((e) => e !== "cancelado");
+  const etapasVisiveis = cancelado
+    ? [...LINEAR_ETAPAS.filter((e) => etapaConcluida(timeline, e)), "cancelado" as const]
+    : LINEAR_ETAPAS;
 
   return (
     <ol className={cn("space-y-0", className)}>
-      {ETAPAS_ORDEM.map((etapa, index) => {
+      {etapasVisiveis.map((etapa, index) => {
         const done = etapaConcluida(timeline, etapa);
         const current = atual === etapa;
         const pending = !done;
@@ -31,7 +39,7 @@ export function PedidoTimeline({ timeline, className }: PedidoTimelineProps) {
 
         return (
           <li key={etapa} className="relative flex gap-3 pb-6 last:pb-0">
-            {index < ETAPAS_ORDEM.length - 1 && (
+            {index < etapasVisiveis.length - 1 && (
               <span
                 className={cn(
                   "absolute left-[11px] top-6 h-[calc(100%-12px)] w-0.5",

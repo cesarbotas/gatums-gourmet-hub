@@ -1,9 +1,11 @@
+import { pageHead } from "@/lib/route-head";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Package, Users, ShoppingBag, DollarSign } from "lucide-react";
 import { produtosService, clientesService, vendasService, pedidosService } from "@/lib/api";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
+  head: () => pageHead("Painel administrativo — Gatums Gourmet", "Consulte os indicadores de produtos, clientes e vendas da Gatums Gourmet."),
   component: AdminOverview,
 });
 
@@ -22,7 +24,7 @@ function AdminOverview() {
         produtos: p.total,
         clientes: c.total,
         pedidos: pedidos.length,
-        faturamento: r.totalFaturamento ?? 0,
+        faturamento: r.faturamento ?? r.totalFaturamento ?? 0,
       });
     })();
   }, []);

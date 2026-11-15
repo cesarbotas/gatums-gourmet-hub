@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/route-head";
 import { createFileRoute } from "@tanstack/react-router";
 import { Instagram, MessageCircle, Mail, MapPin, Phone } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
@@ -13,16 +14,7 @@ const WHATSAPP_MSG = encodeURIComponent(
 );
 
 export const Route = createFileRoute("/sobre")({
-  head: () => ({
-    meta: [
-      { title: "Sobre — Gatums Gourmet | Doces, tortas e brigadeiros em Santos" },
-      {
-        name: "description",
-        content:
-          "Há anos adoçando Santos com brigadeiros gourmet, tortas e doces artesanais feitos à mão. Conheça a Gatums Gourmet e peça o seu.",
-      },
-    ],
-  }),
+  head: () => pageHead("Sobre — Gatums Gourmet", "Conheça a Gatums Gourmet e seus produtos artesanais em Santos."),
   component: SobrePage,
 });
 

@@ -6,6 +6,8 @@ import {
   Smartphone,
   CheckCircle2,
   Copy,
+  XCircle,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,11 +24,12 @@ import { pedidosService, type Pedido } from "@/lib/api/pedidos";
 import { ApiError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
-type EtapaUi = "metodo" | "dados" | "processando" | "sucesso";
+type EtapaUi = "metodo" | "dados" | "processando" | "sucesso" | "cancelado";
 
 interface PagamentoCheckoutProps {
   pedido: Pedido;
   onSucesso: () => void;
+  onCancelar?: () => void;
 }
 
 const iconesMetodo: Record<MetodoPagamento, typeof CreditCard> = {
@@ -35,7 +38,7 @@ const iconesMetodo: Record<MetodoPagamento, typeof CreditCard> = {
   pix: QrCode,
 };
 
-export function PagamentoCheckout({ pedido, onSucesso }: PagamentoCheckoutProps) {
+export function PagamentoCheckout({ pedido, onSucesso, onCancelar }: PagamentoCheckoutProps) {
   const [etapa, setEtapa] = useState<EtapaUi>("metodo");
   const [metodo, setMetodo] = useState<MetodoPagamento>("pix");
   const [transacao, setTransacao] = useState<TransacaoPagamento | null>(null);
@@ -44,9 +47,13 @@ export function PagamentoCheckout({ pedido, onSucesso }: PagamentoCheckoutProps)
   const [validade, setValidade] = useState("");
   const [cvv, setCvv] = useState("");
   const [pollAtivo, setPollAtivo] = useState(false);
+  // true quando o banco confirmou o pagamento via polling — habilita o botão de confirmar
+  const [pixConfirmadoBanco, setPixConfirmadoBanco] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
 
   const iniciarTransacao = useCallback(async () => {
     setEtapa("processando");
+    setPixConfirmadoBanco(false);
     try {
       const tx = await pagamentosService.iniciar(pedido.id, metodo, pedido.total);
       setTransacao(tx);
@@ -85,8 +92,9 @@ export function PagamentoCheckout({ pedido, onSucesso }: PagamentoCheckoutProps)
     }
   };
 
+  // Só disponível após pixConfirmadoBanco === true
   const confirmarPixManual = async () => {
-    if (!transacao) return;
+    if (!transacao || !pixConfirmadoBanco) return;
     setEtapa("processando");
     try {
       const tx = await pagamentosService.confirmarPix(transacao.id);
@@ -95,6 +103,28 @@ export function PagamentoCheckout({ pedido, onSucesso }: PagamentoCheckoutProps)
       setEtapa("dados");
       toast.error(e instanceof ApiError ? e.message : "Não foi possível validar o Pix");
     }
+  };
+
+  const cancelarPedido = async () => {
+    setCancelando(true);
+    setPollAtivo(false);
+    try {
+      await pedidosService.cancelar(pedido.id, "Cancelado pelo cliente na tela de pagamento");
+      setEtapa("cancelado");
+      toast.info("Pedido cancelado.");
+      onCancelar?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao cancelar pedido");
+    } finally {
+      setCancelando(false);
+    }
+  };
+
+  const gerarNovoQr = () => {
+    setTransacao(null);
+    setPixConfirmadoBanco(false);
+    setPollAtivo(false);
+    iniciarTransacao();
   };
 
   useEffect(() => {
@@ -106,10 +136,11 @@ export function PagamentoCheckout({ pedido, onSucesso }: PagamentoCheckoutProps)
         setTransacao(tx);
         if (tx.status === "aprovada") {
           setPollAtivo(false);
-          await finalizarPedido(tx);
+          setPixConfirmadoBanco(true);
+          // Não finaliza automaticamente — aguarda o cliente clicar em "Confirmar pagamento"
         } else if (tx.status === "expirada" || tx.status === "recusada") {
           setPollAtivo(false);
-          toast.error(tx.mensagemErro ?? "Pix expirado ou recusado");
+          toast.error(tx.mensagemErro ?? "Pix expirado ou recusado. Gere um novo QR Code.");
         }
       } catch {
         /* polling silencioso */
@@ -117,7 +148,7 @@ export function PagamentoCheckout({ pedido, onSucesso }: PagamentoCheckoutProps)
     }, 3000);
 
     return () => window.clearInterval(id);
-  }, [pollAtivo, transacao, metodo, finalizarPedido]);
+  }, [pollAtivo, transacao, metodo]);
 
   const copiarPix = () => {
     if (!transacao?.pixCopiaCola) return;
@@ -138,6 +169,9 @@ export function PagamentoCheckout({ pedido, onSucesso }: PagamentoCheckoutProps)
     return `${d.slice(0, 2)}/${d.slice(2)}`;
   };
 
+  const pixExpiradoOuRecusado =
+    transacao && (transacao.status === "expirada" || transacao.status === "recusada");
+
   if (etapa === "sucesso") {
     return (
       <div className="rounded-xl border border-accent/30 bg-accent/10 p-6 text-center">
@@ -145,6 +179,18 @@ export function PagamentoCheckout({ pedido, onSucesso }: PagamentoCheckoutProps)
         <p className="mt-3 font-medium text-foreground">Pagamento aprovado</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Aguarde a confirmação da loja para seguir com o envio.
+        </p>
+      </div>
+    );
+  }
+
+  if (etapa === "cancelado") {
+    return (
+      <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-6 text-center">
+        <XCircle className="mx-auto h-12 w-12 text-destructive" />
+        <p className="mt-3 font-medium text-foreground">Pedido cancelado</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Este pedido foi cancelado. Nenhuma cobrança foi realizada.
         </p>
       </div>
     );
@@ -183,6 +229,15 @@ export function PagamentoCheckout({ pedido, onSucesso }: PagamentoCheckoutProps)
           <Button className="w-full" onClick={iniciarTransacao}>
             Continuar · R$ {pedido.total.toFixed(2)}
           </Button>
+          <Button
+            variant="ghost"
+            className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+            disabled={cancelando}
+            onClick={cancelarPedido}
+          >
+            <XCircle className="h-4 w-4" />
+            Cancelar pedido
+          </Button>
         </>
       )}
 
@@ -195,28 +250,63 @@ export function PagamentoCheckout({ pedido, onSucesso }: PagamentoCheckoutProps)
 
       {etapa === "dados" && transacao && metodo === "pix" && (
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Escaneie o QR Code ou copie o código. A confirmação é automática após o pagamento.
-          </p>
-          {transacao.pixQrCodeDataUrl && (
-            <img
-              src={transacao.pixQrCodeDataUrl}
-              alt="QR Code Pix"
-              className="mx-auto rounded-lg border border-border bg-white p-2"
-              width={220}
-              height={220}
-            />
+          {!pixExpiradoOuRecusado ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Escaneie o QR Code ou copie o código Pix. Após pagar, clique em{" "}
+                <strong>Confirmar pagamento</strong>.
+              </p>
+              {transacao.pixQrCodeDataUrl && (
+                <img
+                  src={transacao.pixQrCodeDataUrl}
+                  alt="QR Code Pix"
+                  className="mx-auto rounded-lg border border-border bg-white p-2"
+                  width={220}
+                  height={220}
+                />
+              )}
+              <Button variant="outline" className="w-full" onClick={copiarPix}>
+                <Copy className="h-4 w-4" /> Copiar código Pix
+              </Button>
+              {pollAtivo && (
+                <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Aguardando confirmação do banco...
+                </p>
+              )}
+              {pixConfirmadoBanco && (
+                <p className="flex items-center justify-center gap-2 text-sm font-medium text-accent">
+                  <CheckCircle2 className="h-4 w-4" /> Pagamento identificado pelo banco
+                </p>
+              )}
+              <Button
+                className="w-full"
+                disabled={!pixConfirmadoBanco}
+                onClick={confirmarPixManual}
+              >
+                <Smartphone className="h-4 w-4" /> Confirmar pagamento
+              </Button>
+            </>
+          ) : (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-center text-sm text-destructive">
+              {transacao.mensagemErro ?? "Pix expirado ou recusado."}
+            </div>
           )}
-          <Button variant="outline" className="w-full" onClick={copiarPix}>
-            <Copy className="h-4 w-4" /> Copiar código Pix
-          </Button>
-          {pollAtivo && (
-            <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" /> Aguardando confirmação do banco...
-            </p>
+
+          {/* Gerar novo QR disponível quando expirado/recusado ou enquanto aguarda */}
+          {(pixExpiradoOuRecusado || (!pixConfirmadoBanco && !pollAtivo)) && (
+            <Button variant="outline" className="w-full" onClick={gerarNovoQr}>
+              <RefreshCw className="h-4 w-4" /> Gerar novo QR Code
+            </Button>
           )}
-          <Button variant="secondary" className="w-full" onClick={confirmarPixManual}>
-            <Smartphone className="h-4 w-4" /> Já paguei — validar agora
+
+          <Button
+            variant="ghost"
+            className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+            disabled={cancelando}
+            onClick={cancelarPedido}
+          >
+            <XCircle className="h-4 w-4" />
+            Cancelar pedido
           </Button>
         </div>
       )}
@@ -276,6 +366,16 @@ export function PagamentoCheckout({ pedido, onSucesso }: PagamentoCheckoutProps)
           </p>
           <Button type="submit" className="w-full">
             Pagar R$ {pedido.total.toFixed(2)}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+            disabled={cancelando}
+            onClick={cancelarPedido}
+          >
+            <XCircle className="h-4 w-4" />
+            Cancelar pedido
           </Button>
         </form>
       )}
