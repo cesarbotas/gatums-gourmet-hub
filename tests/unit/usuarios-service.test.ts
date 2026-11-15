@@ -100,7 +100,7 @@ describe("usuariosService.setRoles", () => {
     expect(initOf(call).method).toBe("PUT");
 
     const body = bodyOf(call) as { usuarioId: string; roleIds: number[] };
-    expect(body).toEqual({ usuarioId: "uid", roleIds: [3] });
+    expect(body).toEqual({ roleIds: [3] });
     expect(body.roleIds.every((v) => typeof v === "number")).toBe(true);
   });
 });
@@ -117,7 +117,7 @@ describe("usuariosService.setAtivo", () => {
     expect(urlOf(call)).toBe(`${API_BASE_URL}/usuarios/uid/ativo`);
     // Ponto crítico: PATCH (não PUT).
     expect(initOf(call).method).toBe("PATCH");
-    expect(bodyOf(call)).toEqual({ usuarioId: "uid", ativo: false });
+    expect(bodyOf(call)).toEqual({ ativo: false });
   });
 });
 

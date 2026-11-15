@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, Link, Navigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Package, Tags, Users, BarChart3, ShoppingBag } from "lucide-react";
+import { LayoutDashboard, Package, Tags, Users, BarChart3, ShoppingBag, Boxes, CreditCard } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { userIsAdmin } from "@/lib/api/auth";
 import { Navigation } from "@/components/Navigation";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -10,19 +11,31 @@ export const Route = createFileRoute("/_authenticated/admin")({
 
 const adminLinks: { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
   { to: "/admin", label: "Visão geral", icon: LayoutDashboard, exact: true },
+  { to: "/admin/venda-rapida", label: "Venda rápida", icon: CreditCard },
   { to: "/admin/produtos", label: "Produtos", icon: Package },
+  { to: "/admin/estoque", label: "Estoque", icon: Boxes },
   { to: "/admin/categorias", label: "Categorias", icon: Tags },
   { to: "/admin/pedidos", label: "Pedidos", icon: ShoppingBag },
   { to: "/admin/clientes", label: "Clientes", icon: Users },
   { to: "/admin/relatorios", label: "Relatórios", icon: BarChart3 },
 ];
 
+/** Admin e Gerente têm acesso ao painel administrativo. */
+function useIsAdminOrGerente() {
+  const { user, ready } = useAuth();
+  const session = typeof window !== "undefined"
+    ? (() => { try { const r = window.localStorage.getItem("gg.session"); return r ? JSON.parse(r) : null; } catch { return null; } })()
+    : null;
+  const isOperador = userIsAdmin(user, session?.accessToken);
+  return { isOperador, ready };
+}
+
 function AdminLayout() {
-  const { isAdmin, ready } = useAuth();
+  const { isOperador, ready } = useIsAdminOrGerente();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   if (!ready) return null;
-  if (!isAdmin) return <Navigate to="/" />;
+  if (!isOperador) return <Navigate to="/" />;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -54,7 +67,7 @@ function AdminLayout() {
             </nav>
           </div>
         </aside>
-        <main className="flex-1">
+        <main className="min-w-0 flex-1">
           <Outlet />
         </main>
       </div>

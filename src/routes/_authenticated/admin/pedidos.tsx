@@ -7,6 +7,7 @@ import {
   Truck,
   Store,
   CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { SearchPagination } from "@/components/SearchPagination";
+import { collectPages, paginateItems } from "@/lib/page-data";
+import { pageHead } from "@/lib/route-head";
+import { ETAPAS_ORDEM } from "@/lib/pedido-flow";
 import { PedidoTimeline } from "@/components/PedidoTimeline";
 import { pedidosService, type Pedido } from "@/lib/api/pedidos";
 import {
@@ -28,23 +40,44 @@ import {
   proximaEtapa,
 } from "@/lib/pedido-flow";
 import type { EntregaTipo } from "@/lib/pedido-flow";
+import { produtosService, type Produto } from "@/lib/api/produtos";
+import { produtosBaixosNoPedido } from "@/lib/order-stock";
 
 export const Route = createFileRoute("/_authenticated/admin/pedidos")({
+  head: () => pageHead("Pedidos — Gatums Gourmet", "Pesquise pedidos por cliente, código, etapa e período."),
   component: AdminPedidosPage,
 });
 
 function AdminPedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [stockError, setStockError] = useState("");
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("todos");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [observacao, setObservacao] = useState("");
   const [entregaTipo, setEntregaTipo] = useState<EntregaTipo>("transporte");
   const [loading, setLoading] = useState<string | null>(null);
+  const [cancelando, setCancelando] = useState<Pedido | null>(null);
+  const [motivoCancelamento, setMotivoCancelamento] = useState("");
 
   const reload = useCallback(() => {
-    pedidosService.listAll().then(setPedidos).catch(() => setPedidos([]));
+    setListLoading(true); setListError("");
+    collectPages((page) => pedidosService.list({ page, pageSize: 100 })).then(setPedidos).catch((err) => setListError(err instanceof Error ? err.message : "Erro ao carregar pedidos.")).finally(() => setListLoading(false));
   }, []);
 
   useEffect(reload, [reload]);
+  useEffect(() => {
+    collectPages((page) => produtosService.list({ page, pageSize: 100 })).then((all) => {
+      setProdutos(all); setStockError(all.some((p) => p.estoqueInformado === false) ? "Alertas de estoque aguardam os saldos na API." : "");
+    }).catch(() => setStockError("Não foi possível consultar o estoque dos itens dos pedidos."));
+  }, [pedidos]);
 
   const avancar = async (id: string) => {
     const pedido = pedidos.find((p) => p.id === id);
@@ -66,11 +99,38 @@ function AdminPedidosPage() {
     }
   };
 
-  const pendentes = pedidos.filter((p) => etapaAtual(p.timeline) !== "finalizado").length;
+  const confirmarCancelamento = async () => {
+    if (!cancelando) return;
+    setLoading(cancelando.id);
+    try {
+      const resp = await pedidosService.cancelar(cancelando.id, motivoCancelamento);
+      toast.success(
+        `Pedido cancelado. ${resp.itensEstornados} ${resp.itensEstornados === 1 ? "item devolvido" : "itens devolvidos"} ao estoque.`,
+      );
+      setCancelando(null);
+      setMotivoCancelamento("");
+      reload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao cancelar pedido.");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const filtered = pedidos.filter((p) => {
+    const query = search.trim().toLowerCase();
+    return (!query || `${p.id} ${p.clienteNome}`.toLowerCase().includes(query)) && (status === "todos" || etapaAtual(p.timeline) === status) && (!start || p.data.slice(0, 10) >= start) && (!end || p.data.slice(0, 10) <= end);
+  });
+  const paginated = paginateItems(filtered, page, pageSize);
+  useEffect(() => { setPage(1); }, [search, status, start, end]);
+  const pendentes = pedidos.filter((p) => {
+    const atual = etapaAtual(p.timeline);
+    return atual !== "finalizado" && atual !== "cancelado";
+  }).length;
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl text-foreground">Pedidos</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -82,24 +142,33 @@ function AdminPedidosPage() {
         </span>
       </div>
 
-      {pedidos.length === 0 ? (
+      <div className="search-filters mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div><Label htmlFor="order-search">Cliente ou código</Label><Input id="order-search" aria-label="Pesquisar pedidos" placeholder="Cliente ou código do pedido..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+        <div><Label htmlFor="order-stage">Etapa</Label><Select value={status} onValueChange={setStatus}><SelectTrigger id="order-stage" aria-label="Filtrar etapa"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todas as etapas</SelectItem>{ETAPAS_ORDEM.map((stage) => <SelectItem key={stage} value={stage}>{statusPedidoLabel(stage)}</SelectItem>)}</SelectContent></Select></div>
+        <div><Label htmlFor="order-start">Data inicial</Label><Input id="order-start" title="Data inicial" type="date" value={start} max={end || undefined} onChange={(e) => setStart(e.target.value)} /></div>
+        <div><Label htmlFor="order-end">Data final</Label><Input id="order-end" title="Data final" type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} /></div>
+        {(search || status !== "todos" || start || end) && <Button variant="ghost" onClick={() => { setSearch(""); setStatus("todos"); setStart(""); setEnd(""); }}>Limpar filtros</Button>}
+      </div>
+      {stockError && <p role="status" className="mt-3 text-sm text-muted-foreground">{stockError}</p>}
+      {listLoading ? <p role="status" className="mt-6 text-muted-foreground">Carregando pedidos...</p> : listError ? <p role="alert" className="mt-6 text-destructive">{listError}</p> : filtered.length === 0 ? (
         <div className="mt-8 rounded-2xl border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
           Nenhum pedido registrado ainda.
         </div>
       ) : (
         <ul className="mt-6 space-y-3">
-          {pedidos.map((p) => {
+          {paginated.items.map((p) => {
             const atual = etapaAtual(p.timeline);
             const aberto = expanded === p.id;
             const acao = proximaAcaoLabel(p.timeline, "admin");
             const prox = proximaEtapa(atual);
             const podeAgir = pedidosService.podeAvancar(p, "admin");
+            const baixos = produtosBaixosNoPedido(p.itens, produtos);
 
             return (
               <li key={p.id} className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-                <button
+                <Button variant="ghost"
                   type="button"
-                  className="flex w-full items-center gap-4 px-4 py-4 text-left hover:bg-secondary/40"
+                  className="flex h-auto w-full justify-start whitespace-normal items-center gap-3 rounded-none px-4 py-4 text-left hover:bg-secondary/40"
                   onClick={() => setExpanded(aberto ? null : p.id)}
                 >
                   <Package className="h-5 w-5 shrink-0 text-accent" />
@@ -107,6 +176,7 @@ function AdminPedidosPage() {
                     <p className="font-medium text-foreground">
                       #{p.id.slice(0, 6).toUpperCase()} · {p.clienteNome}
                     </p>
+                    {baixos.length > 0 && <span className="mt-1 inline-block text-xs font-semibold text-destructive">Estoque baixo · {baixos.length} {baixos.length === 1 ? "produto" : "produtos"}</span>}
                     <p className="text-xs text-muted-foreground">
                       {new Date(p.data).toLocaleString("pt-BR")} · {p.itens.length}{" "}
                       {p.itens.length === 1 ? "item" : "itens"} ·{" "}
@@ -121,7 +191,7 @@ function AdminPedidosPage() {
                   ) : (
                     <ChevronDown className="h-5 w-5 text-muted-foreground" />
                   )}
-                </button>
+                </Button>
 
                 {aberto && (
                   <div className="border-t border-border px-4 py-5">
@@ -133,6 +203,7 @@ function AdminPedidosPage() {
                             <li key={i.produtoId} className="flex justify-between gap-2">
                               <span>
                                 {i.nome} ×{i.quantidade}
+                                {baixos.some((produto) => produto.id === i.produtoId) && <span className="block text-xs text-destructive">Estoque atual baixo</span>}
                               </span>
                               <span className="text-muted-foreground">
                                 R$ {(i.preco * i.quantidade).toFixed(2)}
@@ -212,6 +283,25 @@ function AdminPedidosPage() {
                     {atual === "finalizado" && (
                       <p className="mt-4 text-sm text-muted-foreground">Pedido concluído.</p>
                     )}
+                    {atual === "cancelado" && (
+                      <p className="mt-4 text-sm text-destructive">Pedido cancelado.</p>
+                    )}
+
+                    {/* Cancelar pedido — disponível em qualquer etapa exceto finalizado e cancelado */}
+                    {atual !== "finalizado" && atual !== "cancelado" && (
+                      <div className="mt-4 flex justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-destructive text-destructive hover:bg-destructive/10"
+                          disabled={loading === p.id}
+                          onClick={() => { setCancelando(p); setMotivoCancelamento(""); }}
+                        >
+                          <XCircle className="h-3.5 w-3.5" />
+                          Cancelar pedido
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </li>
@@ -219,6 +309,51 @@ function AdminPedidosPage() {
           })}
         </ul>
       )}
+      {!listLoading && !listError && <SearchPagination page={paginated.page} pageSize={pageSize} total={filtered.length} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1); }} />}
+
+      {/* Modal de confirmação de cancelamento */}
+      <Dialog open={!!cancelando} onOpenChange={(open) => { if (!open) setCancelando(null); }}>
+        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <XCircle className="h-5 w-5" />
+            Cancelar pedido
+          </DialogTitle>
+          <DialogDescription>
+            #{cancelando?.id.slice(0, 6).toUpperCase()} · {cancelando?.clienteNome}
+          </DialogDescription>
+
+          <p className="text-sm text-muted-foreground">
+            Esta ação não pode ser desfeita. O pedido será cancelado e o estoque será
+            revertido conforme a política da API.
+          </p>
+
+          <div className="mt-2">
+            <Label htmlFor="motivo-cancelamento">Motivo (opcional)</Label>
+            <Textarea
+              id="motivo-cancelamento"
+              className="mt-1"
+              rows={2}
+              placeholder="Ex.: solicitação do cliente, item indisponível…"
+              value={motivoCancelamento}
+              onChange={(e) => setMotivoCancelamento(e.target.value)}
+            />
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setCancelando(null)}>
+              Voltar
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={loading === cancelando?.id}
+              onClick={confirmarCancelamento}
+            >
+              <XCircle className="h-4 w-4" />
+              Confirmar cancelamento
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

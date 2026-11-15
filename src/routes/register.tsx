@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/route-head";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
@@ -9,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/register")({
-  head: () => ({ meta: [{ title: "Criar conta — Gatums Gourmet" }] }),
+  head: () => pageHead("Criar conta — Gatums Gourmet", "Crie sua conta para comprar na Gatums Gourmet."),
   component: RegisterPage,
 });
 

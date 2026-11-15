@@ -4,8 +4,6 @@ import {
   Plus,
   Pencil,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
   X,
   Upload,
   Package,
@@ -31,18 +29,24 @@ import {
   imagensService,
   TAMANHO_MAX_IMAGEM,
   TIPOS_IMAGEM_ACEITOS,
-  PAGE_SIZE_OPTIONS,
   type Produto,
   type Categoria,
   type TipoProduto,
   type ItemCombo,
+  type TipoMovimentoEstoque,
+  estoqueBaixo,
+  produtoDisponivel,
+  validarMovimento,
 } from "@/lib/api";
 import { resolveComboItens } from "@/lib/combo-display";
 import { ComboItensList } from "@/components/ComboItensList";
 import { CategoriaCombobox } from "@/components/CategoriaCombobox";
+import { SearchPagination } from "@/components/SearchPagination";
+import { pageHead } from "@/lib/route-head";
 import { PrecoInput } from "@/components/PrecoInput";
 
 export const Route = createFileRoute("/_authenticated/admin/produtos")({
+  head: () => pageHead("Produtos — Gatums Gourmet", "Pesquise produtos por nome, categoria, tipo e disponibilidade."),
   component: AdminProdutosPage,
 });
 
@@ -56,13 +60,32 @@ const empty: Omit<Produto, "id" | "criadoEm"> = {
   disponivel: true,
   tipo: "simples",
   itens: [],
+  estoque: 0,
+  estoqueMinimo: 0,
+  estoqueInicial: 0,
 };
+
+function EstoqueBadge({ p }: { p: Produto }) {
+  if (p.estoqueInformado === false) return <span className="text-xs text-muted-foreground">Não informado</span>;
+  const low = estoqueBaixo(p);
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${low ? "bg-destructive/15 text-destructive" : "bg-secondary text-secondary-foreground"}`} title={`Mínimo: ${p.estoqueMinimo}`}>
+      {p.estoque} un.{low ? " · Estoque baixo" : ""}
+    </span>
+  );
+}
 
 function AdminProdutosPage() {
   const [items, setItems] = useState<Produto[]>([]);
   const [allProdutos, setAllProdutos] = useState<Produto[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState("todas");
+  const [filterType, setFilterType] = useState<TipoProduto | "todos">("todos");
+  const [filterAvailable, setFilterAvailable] = useState("todos");
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState("");
   const [pageSize, setPageSize] = useState(10);
   const [view, setView] = useState<"list" | "form">("list");
   const [editing, setEditing] = useState<Produto | null>(null);
@@ -71,6 +94,30 @@ function AdminProdutosPage() {
   const [uploadingImg, setUploadingImg] = useState(false);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const [ajTipo, setAjTipo] = useState<Exclude<TipoMovimentoEstoque, "venda">>("entrada");
+  const [ajQtd, setAjQtd] = useState("");
+  const [ajObs, setAjObs] = useState("");
+  const [ajSaving, setAjSaving] = useState(false);
+
+  const ajustarEstoque = async () => {
+    if (!editing) return;
+    const q = Number(ajQtd);
+    try { validarMovimento(ajTipo, q); } catch (err) { toast.error(err instanceof Error ? err.message : "Quantidade inválida."); return; }
+    setAjSaving(true);
+    try {
+      await produtosService.ajustarEstoque(editing.id, { tipo: ajTipo, quantidade: q, observacao: ajObs.trim() });
+      const e = await produtosService.getEstoque(editing.id);
+      setEditing({ ...editing, ...e, estoqueInformado: true, disponivel: editing.disponivel && e.estoque > 0 });
+      setForm((f) => ({ ...f, estoque: e.estoque, estoqueInformado: true, disponivel: f.disponivel && e.estoque > 0 }));
+      setAjQtd(""); setAjObs("");
+      toast.success(`Estoque atualizado: ${e.estoque} un.`);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao ajustar estoque");
+    } finally {
+      setAjSaving(false);
+    }
+  };
 
   useEffect(() => {
     categoriasService
@@ -79,16 +126,15 @@ function AdminProdutosPage() {
   }, []);
 
   const load = () => {
-    produtosService.list({ page, pageSize }).then((r) => {
-      setItems(r.items);
-      setTotal(r.total);
-    });
-    produtosService.list({ pageSize: 500 }).then((r) => setAllProdutos(r.items));
+    setListLoading(true); setListError("");
+    produtosService.list({ page, pageSize, search, categoriaId: filterCategory === "todas" ? undefined : Number(filterCategory), tipo: filterType, disponivel: filterAvailable === "todos" ? undefined : filterAvailable === "true" }).then((r) => {
+      setItems(r.items); setTotal(r.total);
+    }).catch((err) => { setItems([]); setTotal(0); setListError(err instanceof Error ? err.message : "Erro ao pesquisar produtos."); }).finally(() => setListLoading(false));
   };
 
-  useEffect(load, [page, pageSize]);
+  useEffect(load, [page, pageSize, search, filterCategory, filterType, filterAvailable]);
+  useEffect(() => { produtosService.list({ pageSize: 500 }).then((r) => setAllProdutos(r.items)).catch(() => setAllProdutos([])); }, []);
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const startCreate = () => {
     setEditing(null);
@@ -99,6 +145,7 @@ function AdminProdutosPage() {
     setEditing(p);
     const { id: _i, criadoEm: _c, ...rest } = p;
     setForm({ ...rest, itens: rest.itens ?? [] });
+    setAjQtd(""); setAjObs(""); setAjTipo("entrada");
     setView("form");
   };
 
@@ -147,6 +194,10 @@ function AdminProdutosPage() {
       toast.error("Combo precisa ter ao menos 1 produto.");
       return;
     }
+    if ((form.estoqueMinimo ?? 0) < 0 || (form.estoqueInicial ?? 0) < 0) {
+      toast.error("Estoque não pode ser negativo.");
+      return;
+    }
     if (!form.categoriaId) {
       toast.error("Selecione uma categoria.");
       return;
@@ -181,7 +232,7 @@ function AdminProdutosPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl text-foreground">Produtos</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -199,6 +250,15 @@ function AdminProdutosPage() {
         )}
       </div>
 
+      {view === "list" && <div className="search-filters mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Input aria-label="Pesquisar produtos" placeholder="Buscar produto..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+        <CategoriaCombobox categorias={categorias} value={filterCategory} onChange={(value) => { setFilterCategory(value); setPage(1); }} allOption={{ value: "todas", label: "Todas as categorias" }} />
+        <Select value={filterType} onValueChange={(value) => { setFilterType(value as typeof filterType); setPage(1); }}><SelectTrigger aria-label="Filtrar tipo"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todos os tipos</SelectItem><SelectItem value="simples">Simples</SelectItem><SelectItem value="combo">Combo</SelectItem></SelectContent></Select>
+        <Select value={filterAvailable} onValueChange={(value) => { setFilterAvailable(value); setPage(1); }}><SelectTrigger aria-label="Filtrar disponibilidade"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todos os status</SelectItem><SelectItem value="true">Disponível</SelectItem><SelectItem value="false">Esgotado</SelectItem></SelectContent></Select>
+        {(search || filterCategory !== "todas" || filterType !== "todos" || filterAvailable !== "todos") && <Button variant="ghost" onClick={() => { setSearch(""); setFilterCategory("todas"); setFilterType("todos"); setFilterAvailable("todos"); setPage(1); }}><X className="h-4 w-4" /> Limpar filtros</Button>}
+        {listLoading && <p role="status" className="text-sm text-muted-foreground">Pesquisando...</p>}
+        {listError && <p role="alert" className="text-sm text-destructive sm:col-span-2">{listError}</p>}
+      </div>}
       {view === "list" ? (
         <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
           {/* Lista em cartões (celular) */}
@@ -224,17 +284,18 @@ function AdminProdutosPage() {
                     </span>
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        p.disponivel
+                        produtoDisponivel(p)
                           ? "bg-accent/15 text-accent"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
-                      {p.disponivel ? "Disponível" : "Esgotado"}
+                      {produtoDisponivel(p) ? "Disponível" : "Indisponível"}
                     </span>
+                    <EstoqueBadge p={p} />
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => startEdit(p)}>
+                  <Button aria-label={`Editar produto ${p.nome}`} title="Editar produto" size="icon" variant="ghost" onClick={() => startEdit(p)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button
@@ -263,6 +324,7 @@ function AdminProdutosPage() {
                 <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Categoria</th>
                 <th className="px-4 py-3">Preço</th>
+                <th className="px-4 py-3">Estoque</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Ações</th>
               </tr>
@@ -298,18 +360,19 @@ function AdminProdutosPage() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{p.categoriaNome}</td>
                   <td className="px-4 py-3 font-medium">R$ {p.preco.toFixed(2)}</td>
+                  <td className="px-4 py-3"><EstoqueBadge p={p} /></td>
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        p.disponivel ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
+                        produtoDisponivel(p) ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
                       }`}
                     >
-                      {p.disponivel ? "Disponível" : "Esgotado"}
+                      {produtoDisponivel(p) ? "Disponível" : "Indisponível"}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => startEdit(p)}>
+                      <Button aria-label={`Editar produto ${p.nome}`} title="Editar produto" size="icon" variant="ghost" onClick={() => startEdit(p)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
@@ -326,7 +389,7 @@ function AdminProdutosPage() {
               ))}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
                     Nenhum produto cadastrado.
                   </td>
                 </tr>
@@ -334,11 +397,10 @@ function AdminProdutosPage() {
             </tbody>
           </table>
 
-          <Pagination
+          <SearchPagination
             page={page}
             pageSize={pageSize}
             total={total}
-            totalPages={totalPages}
             onPage={setPage}
             onPageSize={(s) => {
               setPageSize(s);
@@ -414,10 +476,57 @@ function AdminProdutosPage() {
             />
           </div>
 
+          {!editing && (
+            <div>
+              <Label htmlFor="estoqueInicial">Estoque inicial</Label>
+              <Input id="estoqueInicial" type="number" min={0} step={1} inputMode="numeric" value={form.estoqueInicial ?? 0} onChange={(e) => setForm({ ...form, estoqueInicial: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })} />
+            </div>
+          )}
+
+          <div>
+            <Label htmlFor="estoqueMinimo">Estoque mínimo</Label>
+            <Input id="estoqueMinimo" type="number" min={0} step={1} inputMode="numeric" value={form.estoqueMinimo ?? 0} onChange={(e) => setForm({ ...form, estoqueMinimo: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })} />
+            <p className="mt-1 text-xs text-muted-foreground">Alerta de “Estoque baixo” quando o saldo chegar a este valor.</p>
+          </div>
+
+          {editing && (
+            <div className="md:col-span-2 rounded-xl border border-border bg-secondary/30 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium text-foreground">Ajustar estoque</p>
+                <EstoqueBadge p={editing} />
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-[160px_140px_minmax(0,1fr)_auto] sm:items-end">
+                <div>
+                  <Label>Movimento</Label>
+                  <Select value={ajTipo} onValueChange={(v) => setAjTipo(v as typeof ajTipo)}>
+                    <SelectTrigger aria-label="Tipo de movimento"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="entrada">Entrada</SelectItem>
+                      <SelectItem value="saida">Saída</SelectItem>
+                      <SelectItem value="ajuste">Ajuste (+/-)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="ajQtd">Quantidade</Label>
+                  <Input id="ajQtd" type="number" step={1} value={ajQtd} onChange={(e) => setAjQtd(e.target.value)} />
+                </div>
+                <div>
+                  <Label htmlFor="ajObs">Observação</Label>
+                  <Input id="ajObs" value={ajObs} onChange={(e) => setAjObs(e.target.value)} placeholder="Opcional" />
+                </div>
+                <Button type="button" variant="outline" disabled={ajSaving} onClick={ajustarEstoque}>
+                  {ajSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />} Aplicar
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-3">
             <Switch
               id="disponivel"
-              checked={form.disponivel}
+              checked={form.disponivel && (editing ? form.estoqueInformado === false || form.estoque > 0 : (form.estoqueInicial ?? 0) > 0)}
+              disabled={editing ? form.estoqueInformado !== false && form.estoque <= 0 : (form.estoqueInicial ?? 0) <= 0}
               onCheckedChange={(v) => setForm({ ...form, disponivel: v })}
             />
             <Label htmlFor="disponivel" className="cursor-pointer">
@@ -555,59 +664,6 @@ function AdminProdutosPage() {
           </div>
         </form>
       )}
-    </div>
-  );
-}
-
-function Pagination({
-  page,
-  pageSize,
-  total,
-  totalPages,
-  onPage,
-  onPageSize,
-}: {
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-  onPage: (n: number) => void;
-  onPageSize: (n: number) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-secondary/30 px-4 py-3 text-sm">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <span>Mostrando</span>
-        <Select value={String(pageSize)} onValueChange={(v) => onPageSize(Number(v))}>
-          <SelectTrigger className="h-8 w-20">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PAGE_SIZE_OPTIONS.map((s) => (
-              <SelectItem key={s} value={String(s)}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <span>de {total} registros</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button size="icon" variant="outline" disabled={page <= 1} onClick={() => onPage(page - 1)}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <span className="text-muted-foreground">
-          Página <strong className="text-foreground">{page}</strong> de {totalPages}
-        </span>
-        <Button
-          size="icon"
-          variant="outline"
-          disabled={page >= totalPages}
-          onClick={() => onPage(page + 1)}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
     </div>
   );
 }

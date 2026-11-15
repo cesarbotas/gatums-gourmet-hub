@@ -66,7 +66,6 @@ export const usuariosService = {
     await apiRequest(`/usuarios/${id}/roles`, {
       method: "PUT",
       json: {
-        usuarioId: id,
         roleIds,
       },
     });
@@ -76,7 +75,6 @@ export const usuariosService = {
     await apiRequest(`/usuarios/${id}/ativo`, {
       method: "PATCH",
       json: {
-        usuarioId: id,
         ativo,
       },
     });

@@ -452,6 +452,47 @@ export const pagamentosService = {
     return mapTransacao(raw);
   },
 
+  /**
+   * V2 — Inicia Pix via Mercado Pago Orders API.
+   * Requer payerEmail (obrigatório pela Orders API).
+   * Resposta inclui pixCopiaCola, pixQrCodeBase64, pixExpiraEm.
+   */
+  async iniciarPixV2(input: {
+    pedidoId: string;
+    payerEmail: string;
+    payerNome: string;
+  }): Promise<TransacaoPagamento> {
+    if (MOCK_MODE) {
+      return mockIniciar({ pedidoId: input.pedidoId, metodo: "pix", valor: 0 });
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = await apiRequest<any>("/api/v2/pagamentos/pix", {
+      method: "POST",
+      json: {
+        pedidoId: input.pedidoId,
+        payerEmail: input.payerEmail,
+        payerNome: input.payerNome,
+      },
+      headers: { "Idempotency-Key": `pix-v2-${input.pedidoId}-${Date.now()}` },
+    });
+    // pixQrCodeBase64 → monta data URI
+    if (raw.pixQrCodeBase64 && !raw.pixQrCodeDataUrl) {
+      raw.pixQrCodeDataUrl = `data:image/png;base64,${raw.pixQrCodeBase64}`;
+    }
+    return mapTransacao(raw);
+  },
+
+  /**
+   * V2 — Consulta status do Pix (polling) sincronizando com Mercado Pago.
+   * Usar para Pix V2; o V1 usa consultarStatus().
+   */
+  async consultarStatusV2(transacaoId: string): Promise<TransacaoPagamento> {
+    if (MOCK_MODE) return mockConsultarStatus(transacaoId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = await apiRequest<any>(`/api/v2/pagamentos/${transacaoId}/status`);
+    return mapTransacao(raw);
+  },
+
   getLocal(transacaoId: string): TransacaoPagamento | null {
     return getTransacao(transacaoId);
   },

@@ -1,3 +1,4 @@
+import { appendPageParams, mapPaginated, type PaginatedResponse } from "./config";
 import { apiRequest } from "./client";
 import type { CartItem } from "./carrinho";
 import {
@@ -37,6 +38,7 @@ const ETAPA_TO_INT: Record<PedidoEtapa, number> = {
   envio_pendente: 4,
   entregue: 5,
   finalizado: 6,
+  cancelado: -1,
 };
 
 const ENTREGA_TO_INT: Record<EntregaTipo, number> = { transporte: 0, retirada: 1 };
@@ -54,6 +56,7 @@ function normalizeEtapa(v: unknown): PedidoEtapa {
     enviopendente: "envio_pendente",
     entregue: "entregue",
     finalizado: "finalizado",
+    cancelado: "cancelado",
   };
   return map[s] ?? "criado";
 }
@@ -99,6 +102,12 @@ function mapPedido(raw: any): Pedido {
 }
 
 export const pedidosService = {
+  async list(params: { page?: number; pageSize?: number } = {}): Promise<PaginatedResponse<Pedido>> {
+    const qs = new URLSearchParams();
+    const fallback = appendPageParams(qs, params);
+    const res = await apiRequest<unknown>(`/pedidos?${qs}`);
+    return mapPaginated(res, mapPedido, fallback);
+  },
   async listAll(): Promise<Pedido[]> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await apiRequest<any>("/pedidos?pagina=1&tamanho=100");
@@ -173,5 +182,19 @@ export const pedidosService = {
   create(input: Omit<Pedido, "id" | "timeline"> & { timeline?: PedidoEvento[] }): Pedido {
     throw new Error("Use cartService.checkout() to create orders via the API.");
     return input as unknown as Pedido;
+  },
+
+  /**
+   * Cancela um pedido via DELETE /pedidos/{id}/cancelar.
+   * Cliente: permitido em criado, aprovado, pagamento.
+   * Admin: permitido até envio_pendente.
+   * Devolve estoque e marca transação pendente como recusada no servidor.
+   * Retorna { pedidoId, statusAnterior, itensEstornados }.
+   */
+  async cancelar(id: string, motivo?: string): Promise<{ pedidoId: string; statusAnterior: string; itensEstornados: number }> {
+    return apiRequest(`/pedidos/${id}/cancelar`, {
+      method: "DELETE",
+      json: { motivo: motivo?.trim() || "Cancelado pelo administrador" },
+    });
   },
 };
