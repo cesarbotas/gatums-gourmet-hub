@@ -5,7 +5,8 @@ export type PedidoEtapa =
   | "pagamento_aprovado"
   | "envio_pendente"
   | "entregue"
-  | "finalizado";
+  | "finalizado"
+  | "cancelado";
 
 export type PedidoActor = "cliente" | "admin";
 
@@ -27,6 +28,7 @@ export const ETAPAS_ORDEM: PedidoEtapa[] = [
   "envio_pendente",
   "entregue",
   "finalizado",
+  // cancelado não faz parte do fluxo linear — tratado separadamente
 ];
 
 export const ETAPA_META: Record<
@@ -66,6 +68,11 @@ export const ETAPA_META: Record<
   finalizado: {
     label: "Pedido finalizado",
     descricao: "Fluxo concluído pelo admin",
+    responsavel: "admin",
+  },
+  cancelado: {
+    label: "Pedido cancelado",
+    descricao: "Pedido cancelado pelo cliente ou admin",
     responsavel: "admin",
   },
 };

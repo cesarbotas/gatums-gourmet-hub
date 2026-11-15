@@ -7,6 +7,7 @@ import {
   Truck,
   Store,
   CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { SearchPagination } from "@/components/SearchPagination";
 import { collectPages, paginateItems } from "@/lib/page-data";
@@ -57,6 +64,8 @@ function AdminPedidosPage() {
   const [observacao, setObservacao] = useState("");
   const [entregaTipo, setEntregaTipo] = useState<EntregaTipo>("transporte");
   const [loading, setLoading] = useState<string | null>(null);
+  const [cancelando, setCancelando] = useState<Pedido | null>(null);
+  const [motivoCancelamento, setMotivoCancelamento] = useState("");
 
   const reload = useCallback(() => {
     setListLoading(true); setListError("");
@@ -85,6 +94,24 @@ function AdminPedidosPage() {
       reload();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao atualizar");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const confirmarCancelamento = async () => {
+    if (!cancelando) return;
+    setLoading(cancelando.id);
+    try {
+      const resp = await pedidosService.cancelar(cancelando.id, motivoCancelamento);
+      toast.success(
+        `Pedido cancelado. ${resp.itensEstornados} ${resp.itensEstornados === 1 ? "item devolvido" : "itens devolvidos"} ao estoque.`,
+      );
+      setCancelando(null);
+      setMotivoCancelamento("");
+      reload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao cancelar pedido.");
     } finally {
       setLoading(null);
     }
@@ -253,6 +280,22 @@ function AdminPedidosPage() {
                     {atual === "finalizado" && (
                       <p className="mt-4 text-sm text-muted-foreground">Pedido concluído.</p>
                     )}
+
+                    {/* Cancelar pedido — disponível em qualquer etapa exceto finalizado */}
+                    {atual !== "finalizado" && (
+                      <div className="mt-4 flex justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-destructive text-destructive hover:bg-destructive/10"
+                          disabled={loading === p.id}
+                          onClick={() => { setCancelando(p); setMotivoCancelamento(""); }}
+                        >
+                          <XCircle className="h-3.5 w-3.5" />
+                          Cancelar pedido
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </li>
@@ -261,6 +304,50 @@ function AdminPedidosPage() {
         </ul>
       )}
       {!listLoading && !listError && <SearchPagination page={paginated.page} pageSize={pageSize} total={filtered.length} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1); }} />}
+
+      {/* Modal de confirmação de cancelamento */}
+      <Dialog open={!!cancelando} onOpenChange={(open) => { if (!open) setCancelando(null); }}>
+        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <XCircle className="h-5 w-5" />
+            Cancelar pedido
+          </DialogTitle>
+          <DialogDescription>
+            #{cancelando?.id.slice(0, 6).toUpperCase()} · {cancelando?.clienteNome}
+          </DialogDescription>
+
+          <p className="text-sm text-muted-foreground">
+            Esta ação não pode ser desfeita. O pedido será cancelado e o estoque será
+            revertido conforme a política da API.
+          </p>
+
+          <div className="mt-2">
+            <Label htmlFor="motivo-cancelamento">Motivo (opcional)</Label>
+            <Textarea
+              id="motivo-cancelamento"
+              className="mt-1"
+              rows={2}
+              placeholder="Ex.: solicitação do cliente, item indisponível…"
+              value={motivoCancelamento}
+              onChange={(e) => setMotivoCancelamento(e.target.value)}
+            />
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setCancelando(null)}>
+              Voltar
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={loading === cancelando?.id}
+              onClick={confirmarCancelamento}
+            >
+              <XCircle className="h-4 w-4" />
+              Confirmar cancelamento
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

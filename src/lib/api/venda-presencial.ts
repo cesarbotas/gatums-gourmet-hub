@@ -49,6 +49,9 @@ export interface IniciarPagamentoPresencialInput {
   valor: number;
   /** Obrigatório quando metodo === "dinheiro". Deve ser >= valor. */
   valorRecebido?: number;
+  /** Obrigatório quando metodo === "pix" (exigido pela Orders API V2). */
+  payerEmail?: string;
+  payerNome?: string;
 }
 
 export interface PagamentoPresencialResposta extends TransacaoPagamento {
@@ -223,10 +226,13 @@ async function mockIniciarPagamentoPresencial(
     };
   }
 
-  // Pix — delega ao serviço de pagamentos existente para reutilizar QR mock
-  const tx = await pagamentosService.iniciar(input.pedidoId, "pix", input.valor);
-  // O mock de pagamentos devolve pixQrCodeDataUrl com prefixo data:image/png;base64,
-  // Extraímos a parte base64 pura para manter o mesmo contrato da API real.
+  // Pix — usa V2 (Mercado Pago Orders API) para gerar QR Code nativo
+  const tx = await pagamentosService.iniciarPixV2({
+    pedidoId: input.pedidoId,
+    payerEmail: input.payerEmail ?? "balcao@gatumsgourmet.com.br",
+    payerNome: input.payerNome ?? "Balcão",
+  });
+  // O mock e o V2 real já retornam pixQrCodeDataUrl montado
   const dataUrl = tx.pixQrCodeDataUrl ?? "";
   const pixQrCodeBase64 = dataUrl.startsWith("data:image/png;base64,")
     ? dataUrl.slice("data:image/png;base64,".length)
@@ -234,7 +240,6 @@ async function mockIniciarPagamentoPresencial(
   return {
     ...tx,
     pixQrCodeBase64,
-    // Mantém pixQrCodeDataUrl para compatibilidade com o restante do serviço
     pixQrCodeDataUrl: dataUrl || undefined,
   };
 }
@@ -359,11 +364,11 @@ export const vendaPresencialService = {
   },
 
   /**
-   * Consulta status do Pix (polling). Reutiliza o endpoint existente.
+   * Consulta status do Pix (polling) via V2 — sincroniza com Mercado Pago Orders API.
    * Retorna a transação atualizada — o frontend para o polling ao receber "aprovada".
    */
   async consultarStatusPix(transacaoId: string): Promise<PagamentoPresencialResposta> {
-    const tx = await pagamentosService.consultarStatus(transacaoId);
+    const tx = await pagamentosService.consultarStatusV2(transacaoId);
     return tx as PagamentoPresencialResposta;
   },
 };

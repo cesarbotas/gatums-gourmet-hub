@@ -336,3 +336,46 @@ Quando os endpoints forem publicados, a integração no frontend segue estas eta
 - **Não** enviar preços ou total calculados pelo frontend. O servidor recalcula a partir dos preços cadastrados.
 - **Não** marcar pagamento como aprovado por botão local sem confirmação do servidor (exceto dinheiro, onde a confirmação é por natureza presencial e o servidor pode aprovar imediatamente).
 - **Não** reutilizar a `Idempotency-Key` entre vendas distintas.
+
+---
+
+## 10. Cancelamento de pedido
+
+```
+DELETE /api/v1/pedidos/{id}/cancelar
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+```json
+{ "motivo": "Cancelado pelo administrador" }
+```
+
+**Resposta 200**
+
+```json
+{
+  "pedidoId": "aabbccdd-...",
+  "statusAnterior": "pagamento",
+  "itensEstornados": 3
+}
+```
+
+**Regras por actor**
+
+| Actor | Etapas permitidas |
+|---|---|
+| Cliente | `criado`, `aprovado`, `pagamento` |
+| Admin | `criado`, `aprovado`, `pagamento`, `pagamento_aprovado`, `envio_pendente` |
+
+Etapas `entregue` e `finalizado` bloqueiam o cancelamento para qualquer actor.
+
+O servidor devolve os itens ao estoque (movimento `Ajuste`) e marca a transação de pagamento pendente como `recusada`.
+
+Erros: `400` se já cancelado, `422` se a etapa não permite cancelamento, `403` se o pedido não pertence ao actor.
+
+- **Não** criar um usuário fictício de cliente para usar o endpoint de checkout online (`POST /pedidos/checkout`). O endpoint presencial é separado por design.
+- **Não** chamar `PUT /produtos/{id}/estoque` para baixar manualmente o estoque. O endpoint de venda presencial faz isso atomicamente.
+- **Não** enviar preços ou total calculados pelo frontend. O servidor recalcula a partir dos preços cadastrados.
+- **Não** marcar pagamento como aprovado por botão local sem confirmação do servidor (exceto dinheiro, onde a confirmação é por natureza presencial e o servidor pode aprovar imediatamente).
+- **Não** reutilizar a `Idempotency-Key` entre vendas distintas.

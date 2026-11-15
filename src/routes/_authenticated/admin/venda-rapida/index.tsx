@@ -203,6 +203,8 @@ function VendaRapidaPage() {
         metodo: payment.forma,
         valor: venda.total,
         valorRecebido: payment.forma === "dinheiro" ? valorNum : undefined,
+        payerEmail: user.email,
+        payerNome: user.nome,
       });
 
       setPagamentoResp(pg);

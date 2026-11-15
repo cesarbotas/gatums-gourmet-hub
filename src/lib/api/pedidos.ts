@@ -181,4 +181,18 @@ export const pedidosService = {
     throw new Error("Use cartService.checkout() to create orders via the API.");
     return input as unknown as Pedido;
   },
+
+  /**
+   * Cancela um pedido via DELETE /pedidos/{id}/cancelar.
+   * Cliente: permitido em criado, aprovado, pagamento.
+   * Admin: permitido até envio_pendente.
+   * Devolve estoque e marca transação pendente como recusada no servidor.
+   * Retorna { pedidoId, statusAnterior, itensEstornados }.
+   */
+  async cancelar(id: string, motivo?: string): Promise<{ pedidoId: string; statusAnterior: string; itensEstornados: number }> {
+    return apiRequest(`/pedidos/${id}/cancelar`, {
+      method: "DELETE",
+      json: { motivo: motivo?.trim() || "Cancelado pelo administrador" },
+    });
+  },
 };
