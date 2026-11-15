@@ -28,7 +28,8 @@ export const ETAPAS_ORDEM: PedidoEtapa[] = [
   "envio_pendente",
   "entregue",
   "finalizado",
-  // cancelado não faz parte do fluxo linear — tratado separadamente
+  "cancelado",
+  // cancelado não faz parte do fluxo linear — aparece apenas como filtro
 ];
 
 export const ETAPA_META: Record<
@@ -83,8 +84,18 @@ export function etapaAtual(timeline: PedidoEvento[]): PedidoEtapa {
 }
 
 export function proximaEtapa(atual: PedidoEtapa): PedidoEtapa | null {
-  const i = ETAPAS_ORDEM.indexOf(atual);
-  return i >= 0 && i < ETAPAS_ORDEM.length - 1 ? ETAPAS_ORDEM[i + 1] : null;
+  if (atual === "cancelado") return null;
+  const LINEAR: PedidoEtapa[] = [
+    "criado",
+    "aprovado",
+    "pagamento",
+    "pagamento_aprovado",
+    "envio_pendente",
+    "entregue",
+    "finalizado",
+  ];
+  const i = LINEAR.indexOf(atual);
+  return i >= 0 && i < LINEAR.length - 1 ? LINEAR[i + 1] : null;
 }
 
 export function etapaConcluida(timeline: PedidoEvento[], etapa: PedidoEtapa): boolean {
@@ -93,6 +104,7 @@ export function etapaConcluida(timeline: PedidoEvento[], etapa: PedidoEtapa): bo
 
 export function podeAvancar(timeline: PedidoEvento[], actor: PedidoActor): boolean {
   const atual = etapaAtual(timeline);
+  if (atual === "cancelado") return false;
   const prox = proximaEtapa(atual);
   if (!prox) return false;
   return ETAPA_META[prox].responsavel === actor;
@@ -110,6 +122,7 @@ export function proximaAcaoLabel(timeline: PedidoEvento[], actor: PedidoActor): 
     envio_pendente: "Marcar envio pendente",
     entregue: "Confirmar entrega",
     finalizado: "Finalizar pedido",
+    cancelado: "",
   };
   return labels[prox];
 }

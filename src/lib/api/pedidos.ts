@@ -38,6 +38,7 @@ const ETAPA_TO_INT: Record<PedidoEtapa, number> = {
   envio_pendente: 4,
   entregue: 5,
   finalizado: 6,
+  cancelado: -1,
 };
 
 const ENTREGA_TO_INT: Record<EntregaTipo, number> = { transporte: 0, retirada: 1 };
@@ -55,6 +56,7 @@ function normalizeEtapa(v: unknown): PedidoEtapa {
     enviopendente: "envio_pendente",
     entregue: "entregue",
     finalizado: "finalizado",
+    cancelado: "cancelado",
   };
   return map[s] ?? "criado";
 }

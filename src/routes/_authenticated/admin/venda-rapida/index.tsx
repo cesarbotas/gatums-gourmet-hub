@@ -161,6 +161,26 @@ function VendaRapidaPage() {
     }
   };
 
+  // ── Cancelar venda em andamento ───────────────────────────────────────
+  const cancelarVenda = async () => {
+    // Se já criou o pedido na API, cancela antes de limpar a tela
+    if (pagamentoResp?.pedidoId) {
+      try {
+        const { pedidosService } = await import("@/lib/api/pedidos");
+        await pedidosService.cancelar(
+          pagamentoResp.pedidoId,
+          "Cancelado pelo operador na tela de pagamento",
+        );
+        toast.info("Venda cancelada.");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao cancelar venda.");
+        return; // não reseta se a API rejeitou
+      }
+    }
+    setShowCart(false);
+    startNewSale();
+  };
+
   // ── Nova venda ─────────────────────────────────────────────────────────
   const startNewSale = () => {
     setLines([]);
@@ -286,6 +306,7 @@ function VendaRapidaPage() {
     onConfirmarPagamento: confirmarPagamento,
     onConfirmarMaquininha: confirmarMaquininha,
     onNewSale: startNewSale,
+    onCancelarVenda: cancelarVenda,
     onPixAprovado: (resp) => {
       setPagamentoResp(resp);
       setStep("done");
@@ -572,6 +593,7 @@ interface SidePanelProps {
   onConfirmarPagamento: () => void;
   onConfirmarMaquininha: () => void;
   onNewSale: () => void;
+  onCancelarVenda: () => void;
   onPixAprovado: (resp: PagamentoPresencialResposta) => void;
   compact?: boolean;
 }
@@ -863,8 +885,9 @@ function LoadingStep() {
 
 // ── Step: Maquininha ───────────────────────────────────────────────────────
 
-function MaquininhaStep({ payment, total, onConfirmarMaquininha, onNewSale }: SidePanelProps) {
+function MaquininhaStep({ payment, total, onConfirmarMaquininha, onCancelarVenda }: SidePanelProps) {
   const [confirming, setConfirming] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
 
   const handleConfirmar = async () => {
     setConfirming(true);
@@ -910,10 +933,11 @@ function MaquininhaStep({ payment, total, onConfirmarMaquininha, onNewSale }: Si
 
       <Button
         variant="ghost"
-        className="mt-2 w-full text-muted-foreground"
-        onClick={onNewSale}
+        className="mt-2 w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+        disabled={cancelando}
+        onClick={async () => { setCancelando(true); await onCancelarVenda(); }}
       >
-        <Trash2 className="h-3.5 w-3.5" />
+        {cancelando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
         Cancelar venda
       </Button>
     </div>
@@ -922,8 +946,9 @@ function MaquininhaStep({ payment, total, onConfirmarMaquininha, onNewSale }: Si
 
 // ── Step: Pix — exibe QR Code ─────────────────────────────────────────────
 
-function PixQrStep({ pagamentoResp, total, onStep, onNewSale }: SidePanelProps) {
+function PixQrStep({ pagamentoResp, total, onStep, onCancelarVenda }: SidePanelProps) {
   const [copied, setCopied] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
 
   const copiar = () => {
     if (!pagamentoResp?.pixCopiaCola) return;
@@ -1008,10 +1033,11 @@ function PixQrStep({ pagamentoResp, total, onStep, onNewSale }: SidePanelProps) 
 
       <Button
         variant="ghost"
-        className="mt-2 w-full text-muted-foreground"
-        onClick={onNewSale}
+        className="mt-2 w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+        disabled={cancelando}
+        onClick={async () => { setCancelando(true); await onCancelarVenda(); }}
       >
-        <Trash2 className="h-3.5 w-3.5" />
+        {cancelando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
         Cancelar venda
       </Button>
     </div>
@@ -1020,10 +1046,11 @@ function PixQrStep({ pagamentoResp, total, onStep, onNewSale }: SidePanelProps) 
 
 // ── Step: Pix — polling de confirmação ────────────────────────────────────
 
-function PixAguardoStep({ pagamentoResp, onPixAprovado, onStep, onNewSale }: SidePanelProps) {
+function PixAguardoStep({ pagamentoResp, onPixAprovado, onStep, onCancelarVenda }: SidePanelProps) {
   const [status, setStatus] = useState<string>(
     pagamentoResp?.status ?? "aguardando_pagamento",
   );
+  const [cancelando, setCancelando] = useState(false);
 
   useEffect(() => {
     if (!pagamentoResp?.id) return;
@@ -1075,10 +1102,11 @@ function PixAguardoStep({ pagamentoResp, onPixAprovado, onStep, onNewSale }: Sid
 
       <Button
         variant="ghost"
-        className="mt-2 w-full text-muted-foreground"
-        onClick={onNewSale}
+        className="mt-2 w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+        disabled={cancelando}
+        onClick={async () => { setCancelando(true); await onCancelarVenda(); }}
       >
-        <Trash2 className="h-3.5 w-3.5" />
+        {cancelando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
         Cancelar venda
       </Button>
     </div>

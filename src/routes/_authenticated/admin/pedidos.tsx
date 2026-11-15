@@ -123,7 +123,10 @@ function AdminPedidosPage() {
   });
   const paginated = paginateItems(filtered, page, pageSize);
   useEffect(() => { setPage(1); }, [search, status, start, end]);
-  const pendentes = pedidos.filter((p) => etapaAtual(p.timeline) !== "finalizado").length;
+  const pendentes = pedidos.filter((p) => {
+    const atual = etapaAtual(p.timeline);
+    return atual !== "finalizado" && atual !== "cancelado";
+  }).length;
 
   return (
     <div>
@@ -280,9 +283,12 @@ function AdminPedidosPage() {
                     {atual === "finalizado" && (
                       <p className="mt-4 text-sm text-muted-foreground">Pedido concluído.</p>
                     )}
+                    {atual === "cancelado" && (
+                      <p className="mt-4 text-sm text-destructive">Pedido cancelado.</p>
+                    )}
 
-                    {/* Cancelar pedido — disponível em qualquer etapa exceto finalizado */}
-                    {atual !== "finalizado" && (
+                    {/* Cancelar pedido — disponível em qualquer etapa exceto finalizado e cancelado */}
+                    {atual !== "finalizado" && atual !== "cancelado" && (
                       <div className="mt-4 flex justify-end">
                         <Button
                           variant="outline"
